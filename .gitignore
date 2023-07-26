@@ -1,0 +1,8 @@
+cmd/explore/
+.vscode
+.DS_Store
+to
+from
+*.log
+*.csv
+data*
