@@ -15,7 +15,10 @@ func (c *controller) handleEvent(event any) {
 		c.archiveScanned(event)
 
 	case m.FileHashed:
-		// c.fileHashed(event)
+		c.fileHashed(event)
+
+	case m.ArchiveHashed:
+		c.archiveHashed(event)
 
 	case m.FileDeleted:
 		// c.fileDeleted(event)
@@ -37,6 +40,11 @@ func (c *controller) handleEvent(event any) {
 
 	case m.ScreenSize:
 		c.screenSize = w.Size{Width: event.Width, Height: event.Height}
+
+	case m.SelectArchive:
+		if event.Idx < len(c.roots) {
+			c.archive = c.archives[c.roots[event.Idx]]
+		}
 
 	case m.Enter:
 		// c.enter()
@@ -109,10 +117,26 @@ func (c *controller) archiveScanned(event m.ArchiveScanned) {
 
 }
 
+func (c *controller) fileHashed(event m.FileHashed) {
+	log.Printf("file hashed: %s", event)
+	archive := c.archives[event.Root]
+	folder := archive.getFolder(event.Path)
+	file := folder.entries[event.Base]
+	file.Hash = event.Hash
+
+	archive.totalHashed += file.Size
+	archive.fileHashed = 0
+}
+
+func (c *controller) archiveHashed(event m.ArchiveHashed) {
+	archive := c.archives[event.Root]
+	archive.progressInfo = nil
+}
+
 func (c *controller) handleHashingProgress(event m.HashingProgress) {
 	archive := c.archives[event.Root]
 	archive.fileHashed = event.Hashed
-	c.archives[event.Root].progressInfo = progressInfo{
+	c.archives[event.Root].progressInfo = &progressInfo{
 		tab:           " Hashing",
 		value:         float64(archive.totalHashed+uint64(archive.fileHashed)) / float64(archive.totalSize),
 		speed:         archive.speed,
@@ -122,7 +146,7 @@ func (c *controller) handleHashingProgress(event m.HashingProgress) {
 
 func (c *controller) handleCopyingProgress(event m.CopyingProgress) {
 	c.fileCopiedSize = uint64(event)
-	info := progressInfo{
+	info := &progressInfo{
 		tab:           " Copying",
 		value:         float64(c.totalCopiedSize+uint64(c.fileCopiedSize)) / float64(c.copySize),
 		speed:         c.copySpeed,

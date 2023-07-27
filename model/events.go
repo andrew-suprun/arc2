@@ -16,6 +16,12 @@ type ArchiveScanned struct {
 
 func (ArchiveScanned) event() {}
 
+type ArchiveHashed struct {
+	Root Root
+}
+
+func (ArchiveHashed) event() {}
+
 type FileHashed struct {
 	Id
 	Hash
@@ -60,7 +66,7 @@ const (
 )
 
 type HashingProgress struct {
-	Root
+	Id
 	Hashed uint64
 }
 
@@ -86,6 +92,12 @@ type ScreenSize struct {
 }
 
 func (ScreenSize) event() {}
+
+type SelectArchive struct {
+	Idx int
+}
+
+func (SelectArchive) event() {}
 
 type Open struct{}
 

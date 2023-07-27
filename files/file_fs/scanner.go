@@ -179,7 +179,7 @@ func (s *scanner) hashFile(id m.Id) m.Hash {
 
 		hashed += uint64(nr)
 		s.events.Push(m.HashingProgress{
-			Root:   id.Root,
+			Id:     id,
 			Hashed: hashed,
 		})
 	}

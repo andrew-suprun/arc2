@@ -62,7 +62,7 @@ func (s *scanner) handleCommand(cmd m.FileCommand) {
 
 	case m.CopyFile:
 		for _, meta := range metas[cmd.From.Root] {
-			if meta.FullName == cmd.From.Name.String() {
+			if meta.Id.Name == cmd.From.Name {
 				for copied := uint64(0); ; copied += 50000 {
 					if copied > meta.Size {
 						copied = meta.Size
@@ -90,13 +90,7 @@ func (s *scanner) scanArchive() {
 	files := []m.Meta{}
 	for _, meta := range archFiles {
 		files = append(files, m.Meta{
-			Id: m.Id{
-				Root: meta.Root,
-				Name: m.Name{
-					Path: dir(meta.FullName),
-					Base: name(meta.FullName),
-				},
-			},
+			Id:      meta.Id,
 			Size:    meta.Size,
 			ModTime: meta.ModTime,
 		})
@@ -116,13 +110,7 @@ func (s *scanner) scanArchive() {
 		if !scans[i] {
 			meta := archFiles[i]
 			s.eventStream.Push(m.FileHashed{
-				Id: m.Id{
-					Root: meta.Root,
-					Name: m.Name{
-						Path: dir(meta.FullName),
-						Base: name(meta.FullName),
-					},
-				},
+				Id:   meta.Id,
 				Hash: meta.Hash,
 			})
 		}
@@ -134,24 +122,22 @@ func (s *scanner) scanArchive() {
 				if hashed > meta.Size {
 					hashed = meta.Size
 				}
-				s.eventStream.Push(m.HashingProgress{Root: meta.Root, Hashed: hashed})
+				s.eventStream.Push(m.HashingProgress{Id: meta.Id, Hashed: hashed})
 				if hashed == meta.Size {
 					break
 				}
 				time.Sleep(time.Millisecond)
 			}
 			s.eventStream.Push(m.FileHashed{
-				Id: m.Id{
-					Root: meta.Root,
-					Name: m.Name{
-						Path: dir(meta.FullName),
-						Base: name(meta.FullName),
-					},
-				},
+				Id:   meta.Id,
 				Hash: meta.Hash,
 			})
 		}
 	}
+
+	s.eventStream.Push(m.ArchiveHashed{
+		Root: s.root,
+	})
 }
 
 var beginning = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -160,8 +146,7 @@ var duration = end.Sub(beginning)
 
 type fileMeta struct {
 	INode uint64
-	m.Root
-	FullName string
+	m.Id
 	m.Hash
 	Size    uint64
 	ModTime time.Time
@@ -192,12 +177,11 @@ func init() {
 			}
 			inode++
 			file := &fileMeta{
-				INode:    inode,
-				Root:     root,
-				FullName: name,
-				Hash:     hash,
-				Size:     size,
-				ModTime:  modTime,
+				INode:   inode,
+				Id:      m.Id{Root: root, Name: m.Name{Path: dir(name), Base: base(name)}},
+				Hash:    hash,
+				Size:    size,
+				ModTime: modTime,
 			}
 			metas[root] = append(metas[root], file)
 		}
@@ -268,6 +252,6 @@ func dir(path string) m.Path {
 	return m.Path(path)
 }
 
-func name(path string) m.Base {
+func base(path string) m.Base {
 	return m.Base(filepath.Base(path))
 }

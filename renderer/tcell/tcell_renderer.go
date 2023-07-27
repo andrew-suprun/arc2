@@ -215,8 +215,14 @@ func (device *tcellRenderer) handleKeyEvent(key *tcell.EventKey) {
 
 	case "Backspace2": // Ctrl+Delete
 		device.controllerEvents.Push(m.Delete{})
+
 	case "F12":
 		device.controllerEvents.Push(m.Debug{})
+
+	default:
+		if key.Name() >= "Rune[1]" && key.Name() <= "Rune[9]" {
+			device.controllerEvents.Push(m.SelectArchive{Idx: int(key.Name()[5] - '1')})
+		}
 	}
 }
 

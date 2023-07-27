@@ -21,7 +21,7 @@ type archive struct {
 	prevHashed     uint64
 	speed          float64
 	timeRemaining  time.Duration
-	progressInfo   progressInfo
+	progressInfo   *progressInfo
 	pendingFiles   int
 	duplicateFiles int
 	absentFiles    int
@@ -236,6 +236,9 @@ func (a *archive) breadcrumbs() w.Widget {
 }
 
 func (a *archive) progressWidget() w.Widget {
+	if a.progressInfo == nil {
+		return w.NullWidget{}
+	}
 	return w.Styled(styleStatusLine, w.Row(w.Constraint{Size: w.Size{Width: 0, Height: 1}, Flex: w.Flex{X: 1, Y: 0}},
 		w.Text(a.progressInfo.tab), w.Text(" "),
 		w.Text(fmt.Sprintf(" %6.2f%%", a.progressInfo.value*100)),
