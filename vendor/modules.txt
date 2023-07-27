@@ -65,3 +65,4 @@ golang.org/x/term
 golang.org/x/text/encoding
 golang.org/x/text/encoding/internal/identifier
 golang.org/x/text/transform
+golang.org/x/text/unicode/norm
