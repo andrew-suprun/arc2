@@ -55,7 +55,7 @@ func (a *archive) addFile(file *m.File) {
 	name := file.ParentName()
 	for name.Base != "." {
 		parentFolder := a.getFolder(name.Path)
-		folderEntry := parentFolder.getEntry(name.Base)
+		folderEntry := parentFolder.entry(name.Base)
 		if folderEntry != nil {
 			folderEntry.Size += file.Size
 			if folderEntry.ModTime.Before(file.ModTime) {
@@ -97,12 +97,30 @@ func (a *archive) getFolder(path m.Path) *folder {
 	return pathFolder
 }
 
-func (a *archive) parents(file *m.File, proc func(file *m.File)) {
+func (a *archive) parents(file *m.File, proc func(parent *m.File)) {
 	name := file.ParentName()
 	for name.Base != "." {
-		proc(a.getFolder(name.Path).getEntry(name.Base))
+		proc(a.getFolder(name.Path).entry(name.Base))
 		name = name.Path.ParentName()
 	}
+}
+
+func (a *archive) enter() {
+	file := a.currentFolder().selected()
+	if file != nil && file.Kind == m.FileFolder {
+		a.currentPath = m.Path(file.Name.String())
+	}
+}
+
+func (a *archive) exit() {
+	if a.currentPath == "" {
+		return
+	}
+	parts := strings.Split(a.currentPath.String(), "/")
+	if len(parts) == 1 {
+		a.currentPath = ""
+	}
+	a.currentPath = m.Path(filepath.Join(parts[:len(parts)-1]...))
 }
 
 // Widgets
@@ -148,7 +166,7 @@ func (a *archive) folderWidget() w.Widget {
 					folder.offsetIdx = 0
 				}
 				rows := []w.Widget{}
-				selected := folder.getSelected()
+				selected := folder.selected()
 				for i, file := range folder.entries[folder.offsetIdx:] {
 					if i >= size.Height {
 						break

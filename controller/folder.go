@@ -16,14 +16,14 @@ func (f *folder) addEntry(entry *m.File) {
 	f.entries = append(f.entries, entry)
 }
 
-func (f *folder) getSelected() *m.File {
+func (f *folder) selected() *m.File {
 	if f.selectedIdx < len(f.entries) {
 		return f.entries[f.selectedIdx]
 	}
 	return nil
 }
 
-func (f *folder) getEntry(base m.Base) *m.File {
+func (f *folder) entry(base m.Base) *m.File {
 	for _, entry := range f.entries {
 		if entry.Base == base {
 			return entry

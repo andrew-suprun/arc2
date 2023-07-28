@@ -47,13 +47,13 @@ func (c *controller) handleEvent(event any) {
 		}
 
 	case m.Enter:
-		// c.enter()
+		c.archive.enter()
+
+	case m.Exit:
+		c.archive.exit()
 
 	case m.Open:
 		// c.open()
-
-	case m.Exit:
-		// c.exit()
 
 	case m.RevealInFinder:
 		// c.revealInFinder()
@@ -123,7 +123,7 @@ func (c *controller) archiveScanned(event m.ArchiveScanned) {
 func (c *controller) fileHashed(event m.FileHashed) {
 	archive := c.archives[event.Root]
 	folder := archive.getFolder(event.Path)
-	file := folder.getEntry(event.Base)
+	file := folder.entry(event.Base)
 	file.Hash = event.Hash
 	file.State = m.Hashed
 
@@ -168,7 +168,7 @@ func (c *controller) handleHashingProgress(event m.HashingProgress) {
 	archive := c.archives[event.Root]
 	archive.fileHashed = event.Hashed
 	folder := archive.folders[event.Path]
-	file := folder.getEntry(event.Base)
+	file := folder.entry(event.Base)
 	file.State = m.Hashing
 	file.Hashed = event.Hashed
 
