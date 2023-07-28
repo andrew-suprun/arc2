@@ -51,6 +51,13 @@ func (f *folder) moveSelection(lines int) {
 	}
 }
 
-func (f *folder) makeSelectionVisible() {
-	// TODO
+func (f *folder) moveOffset(lines, fileTreeLines int) {
+	f.offsetIdx += lines
+
+	if f.offsetIdx >= len(f.entries)+1-fileTreeLines {
+		f.offsetIdx = len(f.entries) - fileTreeLines
+	}
+	if f.offsetIdx < 0 {
+		f.offsetIdx = 0
+	}
 }

@@ -76,12 +76,12 @@ func (c *controller) handleEvent(event any) {
 	case m.PgUp:
 		folder := c.archive.currentFolder()
 		folder.moveSelection(-c.archive.fileTreeLines)
-		folder.makeSelectionVisible()
+		folder.moveOffset(-c.archive.fileTreeLines, c.archive.fileTreeLines)
 
 	case m.PgDn:
 		folder := c.archive.currentFolder()
 		folder.moveSelection(c.archive.fileTreeLines)
-		folder.makeSelectionVisible()
+		folder.moveOffset(c.archive.fileTreeLines, c.archive.fileTreeLines)
 
 	case m.Tab:
 		// c.tab()
