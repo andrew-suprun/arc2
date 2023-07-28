@@ -4,6 +4,7 @@ import (
 	m "arc/model"
 	"arc/stream"
 	w "arc/widgets"
+	"log"
 	"time"
 )
 
@@ -29,6 +30,14 @@ type controller struct {
 }
 
 func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) {
+	defer func() {
+		err := recover()
+		log.Printf("PANIC: %#v", err)
+	}()
+	run(fs, renderer, events, roots)
+}
+
+func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) {
 	c := newController(roots)
 
 	go ticker(events)
@@ -52,8 +61,6 @@ func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 		renderer.Push(screen)
 	}
 }
-
-type scanner struct{}
 
 func newController(roots []m.Root) *controller {
 	c := &controller{
