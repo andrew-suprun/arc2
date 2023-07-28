@@ -202,6 +202,7 @@ var metaMap = map[m.Root]map[string]m.Hash{
 		"7777":            "7777",
 		"a/b/e/f.txt":     "gggg",
 		"a/b/e/g.txt":     "tttt",
+		"a/b/e/h.txt":     "hhhh",
 		"x/xxx.txt":       "hhhh",
 		"q/w/e/r/t/y.txt": "qwerty",
 		"qqq.txt":         "hhhh",

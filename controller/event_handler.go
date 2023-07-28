@@ -59,13 +59,13 @@ func (c *controller) handleEvent(event any) {
 		// c.revealInFinder()
 
 	case m.MoveSelection:
-		// c.moveSelection(event.Lines)
+		c.archive.currentFolder().moveSelection(event.Lines)
 
 	case m.SelectFirst:
-		// c.selectFirst()
+		c.archive.currentFolder().selectFirst()
 
 	case m.SelectLast:
-		// c.selectLast()
+		c.archive.currentFolder().selectLast()
 
 	case m.Scroll:
 		// c.shiftOffset(event.Lines)
@@ -74,10 +74,14 @@ func (c *controller) handleEvent(event any) {
 		// c.mouseTarget(event.Command)
 
 	case m.PgUp:
-		// c.pgUp()
+		folder := c.archive.currentFolder()
+		folder.moveSelection(-c.archive.fileTreeLines)
+		folder.makeSelectionVisible()
 
 	case m.PgDn:
-		// c.pgDn()
+		folder := c.archive.currentFolder()
+		folder.moveSelection(c.archive.fileTreeLines)
+		folder.makeSelectionVisible()
 
 	case m.Tab:
 		// c.tab()
@@ -119,15 +123,29 @@ func (c *controller) archiveScanned(event m.ArchiveScanned) {
 func (c *controller) fileHashed(event m.FileHashed) {
 	archive := c.archives[event.Root]
 	folder := archive.getFolder(event.Path)
-	file := folder.entries[event.Base]
+	file := folder.getEntry(event.Base)
 	file.Hash = event.Hash
 	file.State = m.Hashed
-	size := file.Size
 
-	archive.parents(file, func(file *m.File) {
-		file.State = m.Hashed
-		file.Hashed = 0
-		file.TotalHashed += size
+	for _, folder := range archive.folders {
+		for _, entry := range folder.entries {
+			if entry != file && entry.Hash == file.Hash {
+				file.State = m.Duplicate
+				archive.parents(file, func(parent *m.File) {
+					parent.State = m.Duplicate
+				})
+				entry.State = m.Duplicate
+				archive.parents(entry, func(parent *m.File) {
+					parent.State = m.Duplicate
+				})
+			}
+		}
+	}
+
+	archive.parents(file, func(parent *m.File) {
+		parent.State = file.State
+		parent.Hashed = 0
+		parent.TotalHashed += file.Size
 	})
 
 	archive.totalHashed += file.Size
@@ -137,13 +155,20 @@ func (c *controller) fileHashed(event m.FileHashed) {
 func (c *controller) archiveHashed(event m.ArchiveHashed) {
 	archive := c.archives[event.Root]
 	archive.progressInfo = nil
+
+	for _, archive := range c.archives {
+		if archive.progressInfo != nil {
+			return
+		}
+	}
+
 }
 
 func (c *controller) handleHashingProgress(event m.HashingProgress) {
 	archive := c.archives[event.Root]
 	archive.fileHashed = event.Hashed
 	folder := archive.folders[event.Path]
-	file := folder.entries[event.Base]
+	file := folder.getEntry(event.Base)
 	file.State = m.Hashing
 	file.Hashed = event.Hashed
 

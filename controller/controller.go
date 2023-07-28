@@ -35,10 +35,7 @@ func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 
 	for _, root := range roots {
 		scanner := fs.NewArchiveScanner(root)
-		c.archives[root] = &archive{
-			root:    root,
-			folders: map[m.Path]*folder{},
-		}
+		c.archives[root] = newArchive(root)
 		c.scanners[root] = scanner
 		scanner.Send(m.ScanArchive{})
 	}

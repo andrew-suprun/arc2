@@ -35,21 +35,27 @@ type progressInfo struct {
 	timeRemaining time.Duration
 }
 
+func newArchive(root m.Root) *archive {
+	return &archive{
+		root:    root,
+		folders: map[m.Path]*folder{},
+	}
+}
+
 func (a *archive) addFiles(event m.ArchiveScanned) {
 	for _, file := range event.Files {
 		a.addFile(&m.File{Meta: file})
 	}
-	a.setInitialSelection("")
 	a.currentPath = ""
 }
 
 func (a *archive) addFile(file *m.File) {
 	folder := a.getFolder(file.Path)
-	folder.entries[file.Base] = file
+	folder.addEntry(file)
 	name := file.ParentName()
 	for name.Base != "." {
 		parentFolder := a.getFolder(name.Path)
-		folderEntry := parentFolder.entries[name.Base]
+		folderEntry := parentFolder.getEntry(name.Base)
 		if folderEntry != nil {
 			folderEntry.Size += file.Size
 			if folderEntry.ModTime.Before(file.ModTime) {
@@ -68,21 +74,11 @@ func (a *archive) addFile(file *m.File) {
 				Kind:  m.FileFolder,
 				State: m.Scanned,
 			}
-			parentFolder.entries[folderEntry.Base] = folderEntry
+			parentFolder.addEntry(folderEntry)
 
 		}
 
 		name = name.Path.ParentName()
-	}
-}
-
-func (a *archive) setInitialSelection(path m.Path) {
-	a.currentPath = path
-	a.selectFirst()
-	for _, entry := range a.currentFolder().entries {
-		if entry.Kind == m.FileFolder {
-			a.setInitialSelection(m.Path(entry.Name.String()))
-		}
 	}
 }
 
@@ -94,7 +90,6 @@ func (a *archive) getFolder(path m.Path) *folder {
 	pathFolder, ok := a.folders[path]
 	if !ok {
 		pathFolder = &folder{
-			entries:       map[m.Base]*m.File{},
 			sortAscending: []bool{true, false, false},
 		}
 		a.folders[path] = pathFolder
@@ -105,14 +100,9 @@ func (a *archive) getFolder(path m.Path) *folder {
 func (a *archive) parents(file *m.File, proc func(file *m.File)) {
 	name := file.ParentName()
 	for name.Base != "." {
-		proc(a.getFolder(name.Path).entries[name.Base])
+		proc(a.getFolder(name.Path).getEntry(name.Base))
 		name = name.Path.ParentName()
 	}
-}
-
-// Events
-
-func (a *archive) selectFirst() {
 }
 
 // Widgets
@@ -149,7 +139,7 @@ func (a *archive) folderWidget() w.Widget {
 		w.Scroll(m.Scroll{}, w.Constraint{Size: w.Size{Width: 0, Height: 0}, Flex: w.Flex{X: 1, Y: 1}},
 			func(size w.Size) w.Widget {
 				folder := a.currentFolder()
-				sorted := folder.sort()
+				folder.sort()
 				a.fileTreeLines = size.Height
 				if folder.offsetIdx > len(folder.entries)+1-size.Height {
 					folder.offsetIdx = len(folder.entries) + 1 - size.Height
@@ -158,11 +148,12 @@ func (a *archive) folderWidget() w.Widget {
 					folder.offsetIdx = 0
 				}
 				rows := []w.Widget{}
-				for i, file := range sorted[folder.offsetIdx:] {
+				selected := folder.getSelected()
+				for i, file := range folder.entries[folder.offsetIdx:] {
 					if i >= size.Height {
 						break
 					}
-					rows = append(rows, w.Styled(a.styleFile(file, folder.selectedEntry == file),
+					rows = append(rows, w.Styled(a.styleFile(file, selected == file),
 						w.MouseTarget(m.SelectFile(file.Id), w.Row(rowConstraint,
 							a.fileRow(file)...,
 						)),

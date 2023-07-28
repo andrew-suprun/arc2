@@ -6,12 +6,8 @@ import (
 	"strings"
 )
 
-func (f *folder) sort() []*m.File {
-	out := []*m.File{}
-	for _, entry := range f.entries {
-		out = append(out, entry)
-	}
-	files := sliceBy(out)
+func (f *folder) sort() {
+	files := sliceBy(f.entries)
 	var slice sort.Interface
 	switch f.sortColumn {
 	case m.SortByName:
@@ -25,7 +21,6 @@ func (f *folder) sort() []*m.File {
 		slice = sort.Reverse(slice)
 	}
 	sort.Sort(slice)
-	return out
 }
 
 type sliceBy []*m.File
