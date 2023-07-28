@@ -114,15 +114,21 @@ func (c *controller) archiveScanned(event m.ArchiveScanned) {
 	for _, file := range event.Files {
 		archive.totalSize += file.Size
 	}
-
 }
 
 func (c *controller) fileHashed(event m.FileHashed) {
-	log.Printf("file hashed: %s", event)
 	archive := c.archives[event.Root]
 	folder := archive.getFolder(event.Path)
 	file := folder.entries[event.Base]
 	file.Hash = event.Hash
+	file.State = m.Hashed
+	size := file.Size
+
+	archive.parents(file, func(file *m.File) {
+		file.State = m.Hashed
+		file.Hashed = 0
+		file.TotalHashed += size
+	})
 
 	archive.totalHashed += file.Size
 	archive.fileHashed = 0
@@ -136,12 +142,23 @@ func (c *controller) archiveHashed(event m.ArchiveHashed) {
 func (c *controller) handleHashingProgress(event m.HashingProgress) {
 	archive := c.archives[event.Root]
 	archive.fileHashed = event.Hashed
+	folder := archive.folders[event.Path]
+	file := folder.entries[event.Base]
+	file.State = m.Hashing
+	file.Hashed = event.Hashed
+
 	c.archives[event.Root].progressInfo = &progressInfo{
 		tab:           " Hashing",
 		value:         float64(archive.totalHashed+uint64(archive.fileHashed)) / float64(archive.totalSize),
 		speed:         archive.speed,
 		timeRemaining: archive.timeRemaining,
 	}
+
+	archive.parents(file, func(file *m.File) {
+		file.State = m.Hashing
+		file.Hashed = event.Hashed
+	})
+
 }
 
 func (c *controller) handleCopyingProgress(event m.CopyingProgress) {

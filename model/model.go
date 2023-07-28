@@ -73,10 +73,13 @@ type File struct {
 	Meta
 	Kind
 	State
+	Hashed      uint64
+	TotalHashed uint64
 }
 
 func (f *File) String() string {
-	return fmt.Sprintf("File{FileId: %q, Kind: %s, Size: %d, Hash: %q, State: %s}", f.Id, f.Kind, f.Size, f.Hash, f.State)
+	return fmt.Sprintf("File{FileId: %q, Kind: %s, Size: %d, Hash: %q, State: %s, Hashed: %d, TotalHashed; %d}",
+		f.Id, f.Kind, f.Size, f.Hash, f.State, f.Hashed, f.TotalHashed)
 }
 
 type Kind int
@@ -99,7 +102,9 @@ func (k Kind) String() string {
 type State int
 
 const (
-	Initial State = iota
+	Scanned State = iota
+	Hashing
+	Hashed
 	Resolved
 	Pending
 	Autoresolve
@@ -109,8 +114,12 @@ const (
 
 func (s State) String() string {
 	switch s {
-	case Initial:
-		return "Initial"
+	case Scanned:
+		return "Scanned"
+	case Hashing:
+		return "Hashing"
+	case Hashed:
+		return "Hashed"
 	case Resolved:
 		return "Resolved"
 	case Pending:

@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -104,7 +105,7 @@ func (s *scanner) scanArchive() {
 	scans := make([]bool, len(archFiles))
 
 	for i := range archFiles {
-		scans[i] = Scan && rand.Intn(2) == 0
+		scans[i] = Scan
 	}
 	for i := range archFiles {
 		if !scans[i] {
@@ -185,6 +186,11 @@ func init() {
 			}
 			metas[root] = append(metas[root], file)
 		}
+		slice := metas[root]
+		sort.Slice(slice, func(i, j int) bool {
+			return slice[i].Id.String() < slice[j].Id.String()
+		})
+		metas[root] = slice
 	}
 }
 

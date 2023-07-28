@@ -4,7 +4,6 @@ import (
 	m "arc/model"
 	w "arc/widgets"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -38,11 +37,7 @@ type progressInfo struct {
 
 func (a *archive) addFiles(event m.ArchiveScanned) {
 	for _, file := range event.Files {
-		a.addFile(&m.File{
-			Meta:  file,
-			Kind:  m.FileRegular,
-			State: m.Initial,
-		})
+		a.addFile(&m.File{Meta: file})
 	}
 	a.setInitialSelection("")
 	a.currentPath = ""
@@ -54,14 +49,11 @@ func (a *archive) addFile(file *m.File) {
 	name := file.ParentName()
 	for name.Base != "." {
 		parentFolder := a.getFolder(name.Path)
-		item := parentFolder.entries[name.Base]
-		if item != nil {
-			if item.Kind != m.FileFolder {
-				log.Panicf("ERROR: Name collision in controller.addEntry(): %q", name.Base)
-			}
-			item.Size += file.Size
-			if item.ModTime.Before(file.ModTime) {
-				item.ModTime = file.ModTime
+		folderEntry := parentFolder.entries[name.Base]
+		if folderEntry != nil {
+			folderEntry.Size += file.Size
+			if folderEntry.ModTime.Before(file.ModTime) {
+				folderEntry.ModTime = file.ModTime
 			}
 		} else {
 			folderEntry := &m.File{
@@ -74,9 +66,10 @@ func (a *archive) addFile(file *m.File) {
 					ModTime: file.ModTime,
 				},
 				Kind:  m.FileFolder,
-				State: m.Initial,
+				State: m.Scanned,
 			}
-			a.addFile(folderEntry)
+			parentFolder.entries[folderEntry.Base] = folderEntry
+
 		}
 
 		name = name.Path.ParentName()
@@ -107,6 +100,14 @@ func (a *archive) getFolder(path m.Path) *folder {
 		a.folders[path] = pathFolder
 	}
 	return pathFolder
+}
+
+func (a *archive) parents(file *m.File, proc func(file *m.File)) {
+	name := file.ParentName()
+	for name.Base != "." {
+		proc(a.getFolder(name.Path).entries[name.Base])
+		name = name.Path.ParentName()
+	}
 }
 
 // Events
@@ -175,7 +176,7 @@ func (a *archive) folderWidget() w.Widget {
 }
 
 func (a *archive) fileRow(file *m.File) []w.Widget {
-	result := []w.Widget{w.Text(stateString(file.State)).Width(11)}
+	result := []w.Widget{w.Text(" "), state(file)}
 
 	if file.Kind == m.FileRegular {
 		result = append(result, w.Text("   "))
@@ -190,20 +191,21 @@ func (a *archive) fileRow(file *m.File) []w.Widget {
 	return result
 }
 
-func stateString(state m.State) string {
-	switch state {
-	case m.Initial:
-		return ""
-	case m.Resolved:
-		return ""
-	case m.Pending:
-		return " Pending"
-	case m.Duplicate:
-		return " Duplicate"
-	case m.Absent:
-		return " Absent"
+func state(file *m.File) w.Widget {
+	if file.State == m.Hashing {
+		value := float64(file.TotalHashed+file.Hashed) / float64(file.Size)
+		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 	}
-	return "UNKNOWN"
+	text := ""
+	switch file.State {
+	case m.Pending:
+		text = "Pending"
+	case m.Duplicate:
+		text = "Duplicate"
+	case m.Absent:
+		text = "Absent"
+	}
+	return w.Text(text).Width(10)
 }
 
 func (a *archive) sortIndicator(column m.SortColumn) string {
@@ -304,8 +306,12 @@ var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
 func (a *archive) statusColor(file *m.File) byte {
 	switch file.State {
-	case m.Initial:
+	case m.Scanned:
 		return 248
+	case m.Hashing:
+		return 248
+	case m.Hashed:
+		return 195
 	case m.Resolved:
 		return 195
 	case m.Pending:
