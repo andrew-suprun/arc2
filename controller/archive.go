@@ -243,20 +243,22 @@ func (a *archive) progressWidget() w.Widget {
 }
 
 func (a *archive) fileStats() w.Widget {
+	stats := []w.Widget{}
 	if a.duplicateFiles == 0 && a.absentFiles == 0 && a.pendingFiles == 0 {
-		return w.Text(" All Clear").Flex(1)
+		stats = append(stats, w.Text(" All Clear").Flex(1))
+	} else {
+		stats = append(stats, w.Text(" Stats:"))
+		if a.duplicateFiles > 0 {
+			stats = append(stats, w.Text(fmt.Sprintf(" Duplicates: %d", a.duplicateFiles)))
+		}
+		if a.absentFiles > 0 {
+			stats = append(stats, w.Text(fmt.Sprintf(" Absent: %d", a.absentFiles)))
+		}
+		if a.pendingFiles > 0 {
+			stats = append(stats, w.Text(fmt.Sprintf(" Pending: %d", a.pendingFiles)))
+		}
+		stats = append(stats, w.Text("").Flex(1))
 	}
-	stats := []w.Widget{w.Text(" Stats:")}
-	if a.duplicateFiles > 0 {
-		stats = append(stats, w.Text(fmt.Sprintf(" Duplicates: %d", a.duplicateFiles)))
-	}
-	if a.absentFiles > 0 {
-		stats = append(stats, w.Text(fmt.Sprintf(" Absent: %d", a.absentFiles)))
-	}
-	if a.pendingFiles > 0 {
-		stats = append(stats, w.Text(fmt.Sprintf(" Pending: %d", a.pendingFiles)))
-	}
-	stats = append(stats, w.Text("").Flex(1))
 	stats = append(stats, w.Text(fmt.Sprintf(" FPS: %d ", a.fps)))
 	return w.Styled(
 		styleAppTitle,

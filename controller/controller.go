@@ -32,7 +32,9 @@ type controller struct {
 func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) {
 	defer func() {
 		err := recover()
-		log.Printf("PANIC: %#v", err)
+		if err != nil {
+			log.Printf("PANIC: %#v", err)
+		}
 	}()
 	run(fs, renderer, events, roots)
 }

@@ -1,2 +1,2 @@
 * implement missing events
-* show fps
+* show stats summary
