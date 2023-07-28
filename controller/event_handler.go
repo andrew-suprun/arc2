@@ -53,7 +53,7 @@ func (c *controller) handleEvent(event any) {
 		c.archive.exit()
 
 	case m.Open:
-		// c.open()
+		c.archive.currentFolder().open()
 
 	case m.RevealInFinder:
 		// c.revealInFinder()
@@ -143,7 +143,6 @@ func (c *controller) fileHashed(event m.FileHashed) {
 	}
 
 	archive.parents(file, func(parent *m.File) {
-		parent.State = file.State
 		parent.Hashed = 0
 		parent.TotalHashed += file.Size
 	})

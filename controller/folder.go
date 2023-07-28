@@ -2,6 +2,7 @@ package controller
 
 import (
 	m "arc/model"
+	"os/exec"
 )
 
 type folder struct {
@@ -60,4 +61,8 @@ func (f *folder) moveOffset(lines, fileTreeLines int) {
 	if f.offsetIdx < 0 {
 		f.offsetIdx = 0
 	}
+}
+
+func (f *folder) open() {
+	exec.Command("open", f.selected().Id.String()).Start()
 }
