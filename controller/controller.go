@@ -99,18 +99,32 @@ func (c *controller) tab() {
 	}
 
 	sort.Slice(sameHash, func(i, j int) bool {
-		return strings.ToLower(sameHash[i].Name.String()) < strings.ToLower(sameHash[j].Name.String())
+		iFile := sameHash[i]
+		jFile := sameHash[j]
+		iRootIdx := c.rootIdx(iFile.Root)
+		jRootIdx := c.rootIdx(jFile.Root)
+
+		if iRootIdx != jRootIdx {
+			return iRootIdx < jRootIdx
+		}
+
+		iName := strings.ToLower(iFile.Id.String())
+		jName := strings.ToLower(jFile.Id.String())
+
+		return iName < jName
 	})
 
 	idx := 0
-	for idx := range sameHash {
+	for idx = range sameHash {
 		if sameHash[idx] == selected {
 			break
 		}
 	}
+
 	newSelected := sameHash[(idx+1)%len(sameHash)]
 	c.archive = c.archives[newSelected.Root]
 	c.archive.currentPath = newSelected.Path
+
 	for idx, entry := range c.archive.currentFolder().entries {
 		if newSelected == entry {
 			c.archive.currentFolder().selectedIdx = idx
@@ -118,6 +132,15 @@ func (c *controller) tab() {
 		}
 	}
 	c.archive.currentFolder().makeSelectedVisible(c.archive.fileTreeLines)
+}
+
+func (c *controller) rootIdx(root m.Root) int {
+	for idx := range c.roots {
+		if root == c.roots[idx] {
+			return idx
+		}
+	}
+	return 0
 }
 
 func (c *controller) archiveScanned(event m.ArchiveScanned) {
