@@ -2,11 +2,14 @@ package controller
 
 import (
 	m "arc/model"
+	"log"
 	"sort"
 	"strings"
 )
 
 func (f *folder) sort() {
+	selected := f.selected()
+	log.Printf("sort:1: idx: %d, selected: %s", f.selectedIdx, selected)
 	files := sliceBy(f.entries)
 	var slice sort.Interface
 	switch f.sortColumn {
@@ -21,6 +24,13 @@ func (f *folder) sort() {
 		slice = sort.Reverse(slice)
 	}
 	sort.Sort(slice)
+	for idx, entry := range f.entries {
+		if entry == selected {
+			f.selectedIdx = idx
+			break
+		}
+	}
+	log.Printf("sort:2: idx: %d, selected: %s", f.selectedIdx, selected)
 }
 
 type sliceBy []*m.File

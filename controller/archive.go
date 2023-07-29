@@ -82,6 +82,12 @@ func (a *archive) addFile(file *m.File) {
 	}
 }
 
+func (a *archive) sort() {
+	for _, folder := range a.folders {
+		folder.sort()
+	}
+}
+
 func (a *archive) currentFolder() *folder {
 	return a.getFolder(a.currentPath)
 }
@@ -174,17 +180,20 @@ func (a *archive) mouseTarget(cmd any) {
 		a.currentPath = m.Path(cmd)
 
 	case m.SortColumn:
-		a.currentFolder().selectSortColumn(cmd)
+		folder := a.currentFolder()
+		folder.selectSortColumn(cmd)
+		folder.sort()
+		folder.makeSelectedVisible(a.fileTreeLines)
 	}
 }
 
 // Widgets
 
-func (a *archive) rootWidget() w.Widget {
+func (a *archive) rootWidget(fileTreeLines int) w.Widget {
 	return w.Styled(styleDefault,
 		w.Column(colConstraint,
 			a.title(),
-			a.folderWidget(),
+			a.folderWidget(fileTreeLines),
 			a.progressWidget(),
 			a.fileStats(),
 		),
@@ -198,7 +207,7 @@ func (a *archive) title() w.Widget {
 	)
 }
 
-func (a *archive) folderWidget() w.Widget {
+func (a *archive) folderWidget(fileTreeLines int) w.Widget {
 	return w.Column(colConstraint,
 		a.breadcrumbs(),
 		w.Styled(styleArchiveHeader,
@@ -212,7 +221,6 @@ func (a *archive) folderWidget() w.Widget {
 		w.Scroll(m.Scroll{}, w.Constraint{Size: w.Size{Width: 0, Height: 0}, Flex: w.Flex{X: 1, Y: 1}},
 			func(size w.Size) w.Widget {
 				folder := a.currentFolder()
-				folder.sort()
 				a.fileTreeLines = size.Height
 				if folder.offsetIdx > len(folder.entries)+1-size.Height {
 					folder.offsetIdx = len(folder.entries) + 1 - size.Height

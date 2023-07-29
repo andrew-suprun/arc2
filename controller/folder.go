@@ -2,6 +2,7 @@ package controller
 
 import (
 	m "arc/model"
+	"log"
 	"os/exec"
 	"time"
 )
@@ -93,5 +94,18 @@ func (f *folder) selectSortColumn(cmd m.SortColumn) {
 		f.sortAscending[f.sortColumn] = !f.sortAscending[f.sortColumn]
 	} else {
 		f.sortColumn = cmd
+	}
+}
+
+func (f *folder) makeSelectedVisible(fileTreeLines int) {
+	log.Printf("makeSelectedVisible:1: f.selectedIdx: %d, f.offsetIdx: %d", f.selectedIdx, f.offsetIdx)
+
+	if f.offsetIdx > f.selectedIdx {
+		f.offsetIdx = f.selectedIdx
+		log.Printf("makeSelectedVisible:2: f.selectedIdx: %d, f.offsetIdx: %d", f.selectedIdx, f.offsetIdx)
+	}
+	if f.offsetIdx < f.selectedIdx+1-fileTreeLines {
+		f.offsetIdx = f.selectedIdx + 1 - fileTreeLines
+		log.Printf("makeSelectedVisible:3: f.selectedIdx: %d, f.offsetIdx: %d", f.selectedIdx, f.offsetIdx)
 	}
 }

@@ -59,7 +59,11 @@ func (c *controller) handleEvent(event any) {
 		c.archive.currentFolder().revealInFinder()
 
 	case m.MoveSelection:
-		c.archive.currentFolder().moveSelection(event.Lines)
+		folder := c.archive.currentFolder()
+		log.Printf("moveSelection:1: lines: %d, selected: %d, offset: %d", event.Lines, folder.selectedIdx, folder.offsetIdx)
+		folder.moveSelection(event.Lines)
+		folder.makeSelectedVisible(c.archive.fileTreeLines)
+		log.Printf("moveSelection:2: lines: %d, selected: %d, offset: %d", event.Lines, folder.selectedIdx, folder.offsetIdx)
 
 	case m.SelectFirst:
 		c.archive.currentFolder().selectFirst()
@@ -75,16 +79,17 @@ func (c *controller) handleEvent(event any) {
 
 	case m.PgUp:
 		folder := c.archive.currentFolder()
-		folder.moveSelection(-c.archive.fileTreeLines)
 		folder.moveOffset(-c.archive.fileTreeLines, c.archive.fileTreeLines)
+		folder.moveSelection(-c.archive.fileTreeLines)
 
 	case m.PgDn:
 		folder := c.archive.currentFolder()
-		folder.moveSelection(c.archive.fileTreeLines)
 		folder.moveOffset(c.archive.fileTreeLines, c.archive.fileTreeLines)
+		folder.moveSelection(c.archive.fileTreeLines)
 
 	case m.Tab:
-		// c.tab()
+		c.tab()
+		c.archive.currentFolder().makeSelectedVisible(c.archive.fileTreeLines)
 
 	case m.KeepOne:
 		// c.keepSelected()
@@ -114,6 +119,7 @@ func (c *controller) handleEvent(event any) {
 func (c *controller) archiveScanned(event m.ArchiveScanned) {
 	archive := c.archives[event.Root]
 	archive.addFiles(event)
+	archive.sort()
 
 	for _, file := range event.Files {
 		archive.totalSize += file.Size
