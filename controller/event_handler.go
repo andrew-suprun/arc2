@@ -56,7 +56,7 @@ func (c *controller) handleEvent(event any) {
 		c.archive.currentFolder().open()
 
 	case m.RevealInFinder:
-		// c.revealInFinder()
+		c.archive.currentFolder().revealInFinder()
 
 	case m.MoveSelection:
 		c.archive.currentFolder().moveSelection(event.Lines)
@@ -68,10 +68,10 @@ func (c *controller) handleEvent(event any) {
 		c.archive.currentFolder().selectLast()
 
 	case m.Scroll:
-		// c.shiftOffset(event.Lines)
+		c.archive.currentFolder().moveOffset(event.Lines, c.archive.fileTreeLines)
 
 	case m.MouseTarget:
-		// c.mouseTarget(event.Command)
+		c.archive.mouseTarget(event.Command)
 
 	case m.PgUp:
 		folder := c.archive.currentFolder()

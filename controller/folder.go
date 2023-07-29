@@ -3,14 +3,16 @@ package controller
 import (
 	m "arc/model"
 	"os/exec"
+	"time"
 )
 
 type folder struct {
-	entries       []*m.File
-	selectedIdx   int
-	offsetIdx     int
-	sortColumn    m.SortColumn
-	sortAscending []bool
+	entries            []*m.File
+	selectedIdx        int
+	offsetIdx          int
+	sortColumn         m.SortColumn
+	sortAscending      []bool
+	lastMouseEventTime time.Time
 }
 
 func (f *folder) addEntry(entry *m.File) {
@@ -65,4 +67,31 @@ func (f *folder) moveOffset(lines, fileTreeLines int) {
 
 func (f *folder) open() {
 	exec.Command("open", f.selected().Id.String()).Start()
+}
+
+func (f *folder) revealInFinder() {
+	exec.Command("open", "-R", f.selected().Id.String()).Start()
+}
+
+func (f *folder) selectFile(cmd m.SelectFile) {
+	selected := f.selected()
+	if selected.Id == m.Id(cmd) && time.Since(f.lastMouseEventTime).Seconds() < 0.5 {
+		f.open()
+	} else {
+		for idx := range f.entries {
+			if f.entries[idx].Base == cmd.Base {
+				f.selectedIdx = idx
+				break
+			}
+		}
+	}
+	f.lastMouseEventTime = time.Now()
+}
+
+func (f *folder) selectSortColumn(cmd m.SortColumn) {
+	if cmd == f.sortColumn {
+		f.sortAscending[f.sortColumn] = !f.sortAscending[f.sortColumn]
+	} else {
+		f.sortColumn = cmd
+	}
 }

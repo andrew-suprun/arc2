@@ -165,6 +165,19 @@ func (a *archive) exit() {
 	a.currentPath = m.Path(filepath.Join(parts[:len(parts)-1]...))
 }
 
+func (a *archive) mouseTarget(cmd any) {
+	switch cmd := cmd.(type) {
+	case m.SelectFile:
+		a.currentFolder().selectFile(cmd)
+
+	case m.SelectFolder:
+		a.currentPath = m.Path(cmd)
+
+	case m.SortColumn:
+		a.currentFolder().selectSortColumn(cmd)
+	}
+}
+
 // Widgets
 
 func (a *archive) rootWidget() w.Widget {

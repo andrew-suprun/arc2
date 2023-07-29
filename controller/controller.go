@@ -18,13 +18,12 @@ type controller struct {
 	frames     int
 	prevTick   time.Time
 
-	copySize           uint64
-	totalCopiedSize    uint64
-	fileCopiedSize     uint64
-	prevCopied         uint64
-	copySpeed          float64
-	timeRemaining      time.Duration
-	lastMouseEventTime time.Time
+	copySize        uint64
+	totalCopiedSize uint64
+	fileCopiedSize  uint64
+	prevCopied      uint64
+	copySpeed       float64
+	timeRemaining   time.Duration
 
 	quit bool
 }
