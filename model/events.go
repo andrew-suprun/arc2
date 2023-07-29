@@ -11,7 +11,7 @@ type Event interface {
 
 type ArchiveScanned struct {
 	Root  Root
-	Files []Meta
+	Files []*Meta
 }
 
 func (ArchiveScanned) event() {}

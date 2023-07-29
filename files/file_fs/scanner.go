@@ -28,7 +28,7 @@ type scanner struct {
 	commands *stream.Stream[m.FileCommand]
 	lc       *lifecycle.Lifecycle
 	byInode  map[uint64]*m.Meta
-	files    []m.Meta
+	files    []*m.Meta
 	stored   map[uint64]*m.Meta
 	sent     map[m.Id]struct{}
 }
@@ -96,7 +96,7 @@ func (s *scanner) scanArchive() {
 		}
 
 		s.byInode[sys.Ino] = file
-		s.files = append(s.files, *file)
+		s.files = append(s.files, file)
 
 		return nil
 	})

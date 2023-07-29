@@ -88,9 +88,9 @@ func (s *scanner) scanArchive() {
 		totalSize += file.Size
 	}
 
-	files := []m.Meta{}
+	files := []*m.Meta{}
 	for _, meta := range archFiles {
-		files = append(files, m.Meta{
+		files = append(files, &m.Meta{
 			Id:      meta.Id,
 			Size:    meta.Size,
 			ModTime: meta.ModTime,

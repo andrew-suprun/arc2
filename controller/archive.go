@@ -44,7 +44,7 @@ func newArchive(root m.Root) *archive {
 
 func (a *archive) addFiles(event m.ArchiveScanned) {
 	for _, file := range event.Files {
-		a.addFile(&m.File{Meta: file, State: m.Scanned})
+		a.addFile(&m.File{Meta: *file, State: m.Scanned})
 	}
 	a.currentPath = ""
 }
