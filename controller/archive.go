@@ -273,10 +273,10 @@ func state(file *m.File) w.Widget {
 	switch file.State {
 	case m.Pending:
 		text = "Pending"
+	case m.Divergent:
+		text = "Divergent"
 	case m.Duplicate:
 		text = "Duplicate"
-	case m.Absent:
-		text = "Absent"
 	}
 	return w.Text(text).Width(10)
 }
@@ -389,7 +389,7 @@ func (a *archive) statusColor(file *m.File) byte {
 		return 195
 	case m.Pending:
 		return 214
-	case m.Duplicate, m.Absent:
+	case m.Duplicate, m.Divergent:
 		return 196
 	}
 	return 231

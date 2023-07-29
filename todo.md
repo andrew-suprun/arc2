@@ -1,3 +1,4 @@
+* fix c.tab()
 * implement missing events
 * show stats summary
 

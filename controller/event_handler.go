@@ -60,10 +60,8 @@ func (c *controller) handleEvent(event any) {
 
 	case m.MoveSelection:
 		folder := c.archive.currentFolder()
-		log.Printf("moveSelection:1: lines: %d, selected: %d, offset: %d", event.Lines, folder.selectedIdx, folder.offsetIdx)
 		folder.moveSelection(event.Lines)
 		folder.makeSelectedVisible(c.archive.fileTreeLines)
-		log.Printf("moveSelection:2: lines: %d, selected: %d, offset: %d", event.Lines, folder.selectedIdx, folder.offsetIdx)
 
 	case m.SelectFirst:
 		c.archive.currentFolder().selectFirst()
@@ -102,8 +100,8 @@ func (c *controller) handleEvent(event any) {
 		// c.deleteFile(folder.selectedEntry)
 
 	case m.Error:
-		// log.Printf("### Error: %s", event)
-		// c.Errors = append(c.Errors, event)
+		log.Printf("### Error: %s", event)
+		c.errors = append(c.errors, event)
 
 	case m.Quit:
 		c.quit = true
@@ -114,84 +112,4 @@ func (c *controller) handleEvent(event any) {
 	default:
 		log.Panicf("### unhandled event: %#v", event)
 	}
-}
-
-func (c *controller) archiveScanned(event m.ArchiveScanned) {
-	archive := c.archives[event.Root]
-	archive.addFiles(event)
-	archive.sort()
-
-	for _, file := range event.Files {
-		archive.totalSize += file.Size
-	}
-}
-
-func (c *controller) fileHashed(event m.FileHashed) {
-	archive := c.archives[event.Root]
-	folder := archive.getFolder(event.Path)
-	file := folder.entry(event.Base)
-	file.Hash = event.Hash
-	file.State = m.Resolved
-
-	archive.markDuplicates()
-	archive.updateFolderStates("")
-
-	archive.parents(file, func(parent *m.File) {
-		parent.Hashed = 0
-		parent.TotalHashed += file.Size
-	})
-
-	archive.totalHashed += file.Size
-	archive.fileHashed = 0
-}
-
-func (c *controller) archiveHashed(event m.ArchiveHashed) {
-	archive := c.archives[event.Root]
-	archive.progressInfo = nil
-
-	for _, archive := range c.archives {
-		if archive.progressInfo != nil {
-			return
-		}
-	}
-
-}
-
-func (c *controller) handleHashingProgress(event m.HashingProgress) {
-	archive := c.archives[event.Root]
-	archive.fileHashed = event.Hashed
-	folder := archive.folders[event.Path]
-	file := folder.entry(event.Base)
-	file.State = m.Hashing
-	file.Hashed = event.Hashed
-
-	c.archives[event.Root].progressInfo = &progressInfo{
-		tab:           " Hashing",
-		value:         float64(archive.totalHashed+uint64(archive.fileHashed)) / float64(archive.totalSize),
-		speed:         archive.speed,
-		timeRemaining: archive.timeRemaining,
-	}
-
-	archive.parents(file, func(file *m.File) {
-		file.State = m.Hashing
-		file.Hashed = event.Hashed
-	})
-
-}
-
-func (c *controller) handleCopyingProgress(event m.CopyingProgress) {
-	c.fileCopiedSize = uint64(event)
-	info := &progressInfo{
-		tab:           " Copying",
-		value:         float64(c.totalCopiedSize+uint64(c.fileCopiedSize)) / float64(c.copySize),
-		speed:         c.copySpeed,
-		timeRemaining: c.timeRemaining,
-	}
-	for _, archive := range c.archives {
-		archive.progressInfo = info
-	}
-}
-
-func (c *controller) analyzeAbsentFiles() {
-	log.Panic("Implement: controller.analyzeAbsentFiles()")
 }

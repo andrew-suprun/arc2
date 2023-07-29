@@ -106,8 +106,8 @@ const (
 	Scanned
 	Hashing
 	Pending
+	Divergent
 	Duplicate
-	Absent
 )
 
 func (s State) String() string {
@@ -120,10 +120,10 @@ func (s State) String() string {
 		return "Resolved"
 	case Pending:
 		return "Pending"
+	case Divergent:
+		return "Divergent"
 	case Duplicate:
 		return "Duplicate"
-	case Absent:
-		return "Absent"
 	}
 	return "UNKNOWN FILE STATE"
 }

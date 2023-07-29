@@ -211,6 +211,8 @@ var metaMap = map[m.Root]map[string]m.Hash{
 		"yyy.txt":         "yyyy",
 		"same":            "same",
 		"different":       "different",
+		"bla":             "bla",
+		"xyz/bla":         "xyz/bla",
 	},
 	"copy 1": {
 		"xxx.txt":     "xxxx",
@@ -232,6 +234,8 @@ var metaMap = map[m.Root]map[string]m.Hash{
 		"7777":        "7777",
 		"same":        "same-copy",
 		"different":   "different-copy1",
+		"bla":         "bla",
+		"xyz/bla":     "xyz/bla",
 	},
 	"copy 2": {
 		"xxx.txt":         "xxxx",
@@ -248,6 +252,8 @@ var metaMap = map[m.Root]map[string]m.Hash{
 		"c/ccc.txt":       "bbbb",
 		"same":            "same-copy",
 		"different":       "different-copy2",
+		"bla":             "bla",
+		"xyz/bla":         "xyz/bla",
 	},
 }
 
