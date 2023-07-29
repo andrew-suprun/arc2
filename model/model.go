@@ -102,12 +102,10 @@ func (k Kind) String() string {
 type State int
 
 const (
-	Scanned State = iota
+	Resolved State = iota
+	Scanned
 	Hashing
-	Hashed
-	Resolved
 	Pending
-	Autoresolve
 	Duplicate
 	Absent
 )
@@ -118,20 +116,23 @@ func (s State) String() string {
 		return "Scanned"
 	case Hashing:
 		return "Hashing"
-	case Hashed:
-		return "Hashed"
 	case Resolved:
 		return "Resolved"
 	case Pending:
 		return "Pending"
-	case Autoresolve:
-		return "Autoresolve"
 	case Duplicate:
 		return "Duplicate"
 	case Absent:
 		return "Absent"
 	}
 	return "UNKNOWN FILE STATE"
+}
+
+func (s State) Merge(other State) State {
+	if other > s {
+		return other
+	}
+	return s
 }
 
 type SortColumn int

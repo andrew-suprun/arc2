@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -98,7 +97,6 @@ func (s *scanner) scanArchive() {
 
 		s.byInode[sys.Ino] = file
 		s.files = append(s.files, *file)
-		log.Printf("file: %q", file.Id)
 
 		return nil
 	})

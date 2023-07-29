@@ -44,7 +44,7 @@ func newArchive(root m.Root) *archive {
 
 func (a *archive) addFiles(event m.ArchiveScanned) {
 	for _, file := range event.Files {
-		a.addFile(&m.File{Meta: file})
+		a.addFile(&m.File{Meta: file, State: m.Scanned})
 	}
 	a.currentPath = ""
 }
@@ -104,6 +104,48 @@ func (a *archive) parents(file *m.File, proc func(parent *m.File)) {
 		name = name.Path.ParentName()
 	}
 }
+
+func (a *archive) markDuplicates() {
+	hashes := map[m.Hash]int{}
+	for _, folder := range a.folders {
+		for _, entry := range folder.entries {
+			if entry.Hash != "" {
+				hashes[entry.Hash]++
+			}
+		}
+	}
+
+	for _, folder := range a.folders {
+		for _, entry := range folder.entries {
+			if hashes[entry.Hash] > 1 {
+				entry.State = m.Duplicate
+			}
+		}
+	}
+
+	a.duplicateFiles = 0
+	for _, count := range hashes {
+		if count > 1 {
+			a.duplicateFiles++
+		}
+	}
+}
+
+func (a *archive) updateFolderStates(path m.Path) m.State {
+	state := m.Resolved
+	folder := a.getFolder(path)
+	for _, entry := range folder.entries {
+		if entry.Kind == m.FileFolder {
+			entry.State = a.updateFolderStates(m.Path(entry.Name.String()))
+			state = state.Merge(entry.State)
+		} else {
+			state = state.Merge(entry.State)
+		}
+	}
+	return state
+}
+
+// Events
 
 func (a *archive) enter() {
 	file := a.currentFolder().selected()
@@ -201,7 +243,8 @@ func (a *archive) fileRow(file *m.File) []w.Widget {
 }
 
 func state(file *m.File) w.Widget {
-	if file.State == m.Hashing {
+	totalHashed := file.TotalHashed + file.Hashed
+	if totalHashed > 0 && file.TotalHashed+file.Hashed < file.Size {
 		value := float64(file.TotalHashed+file.Hashed) / float64(file.Size)
 		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 	}
@@ -321,8 +364,6 @@ func (a *archive) statusColor(file *m.File) byte {
 		return 248
 	case m.Hashing:
 		return 248
-	case m.Hashed:
-		return 195
 	case m.Resolved:
 		return 195
 	case m.Pending:

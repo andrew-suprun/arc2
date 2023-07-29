@@ -125,22 +125,10 @@ func (c *controller) fileHashed(event m.FileHashed) {
 	folder := archive.getFolder(event.Path)
 	file := folder.entry(event.Base)
 	file.Hash = event.Hash
-	file.State = m.Hashed
+	file.State = m.Resolved
 
-	for _, folder := range archive.folders {
-		for _, entry := range folder.entries {
-			if entry != file && entry.Hash == file.Hash {
-				file.State = m.Duplicate
-				archive.parents(file, func(parent *m.File) {
-					parent.State = m.Duplicate
-				})
-				entry.State = m.Duplicate
-				archive.parents(entry, func(parent *m.File) {
-					parent.State = m.Duplicate
-				})
-			}
-		}
-	}
+	archive.markDuplicates()
+	archive.updateFolderStates("")
 
 	archive.parents(file, func(parent *m.File) {
 		parent.Hashed = 0
