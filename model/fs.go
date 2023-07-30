@@ -5,20 +5,13 @@ import (
 )
 
 type FS interface {
-	NewArchiveScanner(root Root) ArchiveScanner
-}
-
-type ArchiveScanner interface {
+	Scan(root Root)
 	Send(cmd FileCommand)
 }
 
 type FileCommand interface {
 	cmd()
 }
-
-type ScanArchive struct{}
-
-func (ScanArchive) cmd() {}
 
 type DeleteFile struct {
 	Hash Hash

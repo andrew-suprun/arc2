@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-func (s *scanner) deleteFile(delete m.DeleteFile) {
+func (f *fileFs) deleteFile(delete m.DeleteFile) {
 	defer func() {
-		s.events.Push(m.FileDeleted(delete))
+		f.events.Push(m.FileDeleted(delete))
 	}()
 	err := os.Remove(delete.Id.String())
 	if err != nil {
-		s.events.Push(m.Error{Id: delete.Id, Error: err})
+		f.events.Push(m.Error{Id: delete.Id, Error: err})
 	}
 	path := filepath.Join(delete.Id.Root.String(), delete.Id.Path.String())
 	fsys := os.DirFS(path)
@@ -34,24 +34,24 @@ func (s *scanner) deleteFile(delete m.DeleteFile) {
 	}
 }
 
-func (s *scanner) renameFile(rename m.RenameFile) {
+func (f *fileFs) renameFile(rename m.RenameFile) {
 	defer func() {
-		s.events.Push(m.FileRenamed(rename))
+		f.events.Push(m.FileRenamed(rename))
 	}()
 	path := filepath.Join(rename.From.Root.String(), rename.To.Path.String())
 	err := os.MkdirAll(path, 0755)
 	if err != nil {
-		s.events.Push(m.Error{Id: rename.From, Error: err})
+		f.events.Push(m.Error{Id: rename.From, Error: err})
 	}
 	err = os.Rename(rename.From.String(), rename.To.String())
 	if err != nil {
-		s.events.Push(m.Error{Id: rename.From, Error: err})
+		f.events.Push(m.Error{Id: rename.From, Error: err})
 	}
 }
 
-func (s *scanner) copyFile(copy m.CopyFile) {
+func (f *fileFs) copyFile(copy m.CopyFile) {
 	defer func() {
-		s.events.Push(m.FileCopied(copy))
+		f.events.Push(m.FileCopied(copy))
 	}()
 
 	events := make([]chan event, len(copy.To))
@@ -62,7 +62,7 @@ func (s *scanner) copyFile(copy m.CopyFile) {
 		events[i] = make(chan event)
 	}
 
-	go s.reader(copy.From, copy.To, events)
+	go f.reader(copy.From, copy.To, events)
 
 	for {
 		hasValue := false
@@ -76,7 +76,7 @@ func (s *scanner) copyFile(copy m.CopyFile) {
 					minCopied = copied[i]
 
 				case copyError:
-					s.events.Push(m.Error{Id: event.Id, Error: event.Error})
+					f.events.Push(m.Error{Id: event.Id, Error: event.Error})
 				}
 			}
 		}
@@ -87,7 +87,7 @@ func (s *scanner) copyFile(copy m.CopyFile) {
 		}
 		if reported < minCopied {
 			reported = minCopied
-			s.events.Push(m.CopyingProgress(reported))
+			f.events.Push(m.CopyingProgress(reported))
 		}
 		if !hasValue {
 			break
@@ -107,7 +107,7 @@ type copyError m.Error
 
 func (copyError) event() {}
 
-func (s *scanner) reader(source m.Id, targets []m.Id, eventChans []chan event) {
+func (f *fileFs) reader(source m.Id, targets []m.Id, eventChans []chan event) {
 	commands := make([]chan []byte, len(targets))
 	defer func() {
 		for _, cmdChan := range commands {
@@ -117,27 +117,27 @@ func (s *scanner) reader(source m.Id, targets []m.Id, eventChans []chan event) {
 
 	info, err := os.Stat(source.String())
 	if err != nil {
-		s.events.Push(m.Error{Id: source, Error: err})
+		f.events.Push(m.Error{Id: source, Error: err})
 		return
 	}
 
 	for i := range targets {
 		commands[i] = make(chan []byte)
-		go s.writer(m.Id{Root: targets[i].Root, Name: source.Name}, info.ModTime(), commands[i], eventChans[i])
+		go f.writer(m.Id{Root: targets[i].Root, Name: source.Name}, info.ModTime(), commands[i], eventChans[i])
 	}
 
 	sourceFile, err := os.Open(source.String())
 	if err != nil {
-		s.events.Push(m.Error{Id: source, Error: err})
+		f.events.Push(m.Error{Id: source, Error: err})
 		return
 	}
 
 	var n int
-	for err != io.EOF && !s.lc.ShoudStop() {
+	for err != io.EOF && !f.lc.ShoudStop() {
 		buf := make([]byte, 1024*1024)
 		n, err = sourceFile.Read(buf)
 		if err != nil && err != io.EOF {
-			s.events.Push(m.Error{Id: source, Error: err})
+			f.events.Push(m.Error{Id: source, Error: err})
 			return
 		}
 		for _, cmd := range commands {
@@ -146,21 +146,21 @@ func (s *scanner) reader(source m.Id, targets []m.Id, eventChans []chan event) {
 	}
 }
 
-func (s *scanner) writer(id m.Id, modTime time.Time, cmdChan chan []byte, eventChan chan event) {
+func (f *fileFs) writer(id m.Id, modTime time.Time, cmdChan chan []byte, eventChan chan event) {
 	var copied copyProgress
 
 	filePath := filepath.Join(id.Root.String(), id.Path.String())
 	os.MkdirAll(filePath, 0755)
 	file, err := os.Create(id.String())
 	if err != nil {
-		s.events.Push(m.Error{Id: id, Error: err})
+		f.events.Push(m.Error{Id: id, Error: err})
 		return
 	}
 
 	defer func() {
 		if file != nil {
 			file.Close()
-			if s.lc.ShoudStop() {
+			if f.lc.ShoudStop() {
 				os.Remove(filePath)
 			}
 			os.Chtimes(id.String(), time.Now(), modTime)
@@ -169,14 +169,14 @@ func (s *scanner) writer(id m.Id, modTime time.Time, cmdChan chan []byte, eventC
 	}()
 
 	for cmd := range cmdChan {
-		if s.lc.ShoudStop() {
+		if f.lc.ShoudStop() {
 			return
 		}
 
 		n, err := file.Write([]byte(cmd))
 		copied += copyProgress(n)
 		if err != nil {
-			s.events.Push(m.Error{Id: id, Error: err})
+			f.events.Push(m.Error{Id: id, Error: err})
 			return
 		}
 		eventChan <- copied

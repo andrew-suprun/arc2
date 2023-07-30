@@ -23,45 +23,13 @@ import (
 const hashFileName = ".meta.csv"
 
 type scanner struct {
-	root     m.Root
-	events   *stream.Stream[m.Event]
-	commands *stream.Stream[m.FileCommand]
-	lc       *lifecycle.Lifecycle
-	byInode  map[uint64]*m.Meta
-	files    []*m.Meta
-	stored   map[uint64]*m.Meta
-	sent     map[m.Id]struct{}
-}
-
-func (s *scanner) Send(cmd m.FileCommand) {
-	s.commands.Push(cmd)
-}
-
-func (s *scanner) handleEvents() {
-	for {
-		for _, cmd := range s.commands.Pull() {
-			s.handleCommand(cmd)
-		}
-	}
-}
-
-func (s *scanner) handleCommand(cmd m.FileCommand) {
-	s.lc.Started()
-	defer s.lc.Done()
-
-	switch cmd := cmd.(type) {
-	case m.ScanArchive:
-		s.scanArchive()
-
-	case m.DeleteFile:
-		s.deleteFile(cmd)
-
-	case m.RenameFile:
-		s.renameFile(cmd)
-
-	case m.CopyFile:
-		s.copyFile(cmd)
-	}
+	root    m.Root
+	events  *stream.Stream[m.Event]
+	lc      *lifecycle.Lifecycle
+	byInode map[uint64]*m.Meta
+	files   []*m.Meta
+	stored  map[uint64]*m.Meta
+	sent    map[m.Id]struct{}
 }
 
 func (s *scanner) scanArchive() {

@@ -14,9 +14,10 @@ import (
 type controller struct {
 	roots    []m.Root
 	archives map[m.Root]*archive
-	scanners map[m.Root]m.ArchiveScanner
 	archive  *archive
 	hashed   int
+
+	*shared
 
 	screenSize w.Size
 	frames     int
@@ -52,14 +53,13 @@ func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 
 func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) {
 	c := newController(roots)
+	c.shared.fs = fs
 
 	go ticker(events)
 
 	for _, root := range roots {
-		scanner := fs.NewArchiveScanner(root)
-		c.archives[root] = newArchive(root)
-		c.scanners[root] = scanner
-		scanner.Send(m.ScanArchive{})
+		c.archives[root] = newArchive(root, c.shared)
+		c.shared.fs.Scan(root)
 	}
 	c.archive = c.archives[roots[0]]
 
@@ -79,7 +79,7 @@ func newController(roots []m.Root) *controller {
 	c := &controller{
 		roots:    roots,
 		archives: map[m.Root]*archive{},
-		scanners: map[m.Root]m.ArchiveScanner{},
+		shared:   &shared{},
 	}
 	return c
 }

@@ -12,7 +12,7 @@ func (c *controller) handleEvent(event any) {
 	}
 	switch event := event.(type) {
 	case m.ArchiveScanned:
-		c.archive.archiveScanned(event)
+		c.archives[event.Root].archiveScanned(event)
 
 	case m.FileHashed:
 		c.fileHashed(event)

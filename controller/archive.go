@@ -10,6 +10,8 @@ type archive struct {
 	folders     map[m.Path]*folder
 	currentPath m.Path
 
+	*shared
+
 	totalSize      uint64
 	totalHashed    uint64
 	fileHashed     uint64
@@ -21,7 +23,6 @@ type archive struct {
 	duplicateFiles int
 	absentFiles    int
 	fileTreeLines  int
-	fps            int
 }
 
 type progressInfo struct {
@@ -31,10 +32,11 @@ type progressInfo struct {
 	timeRemaining time.Duration
 }
 
-func newArchive(root m.Root) *archive {
+func newArchive(root m.Root, shared *shared) *archive {
 	return &archive{
 		root:    root,
 		folders: map[m.Path]*folder{},
+		shared:  shared,
 	}
 }
 

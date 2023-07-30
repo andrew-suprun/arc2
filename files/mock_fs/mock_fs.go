@@ -14,52 +14,51 @@ var Scan bool
 
 type mockFs struct {
 	eventStream *stream.Stream[m.Event]
+	commands    *stream.Stream[m.FileCommand]
 }
 
 type scanner struct {
 	root        m.Root
 	eventStream *stream.Stream[m.Event]
-	commands    *stream.Stream[m.FileCommand]
 }
 
 func NewFs(eventStream *stream.Stream[m.Event]) m.FS {
-	fs := &mockFs{eventStream: eventStream}
+	fs := &mockFs{
+		eventStream: eventStream,
+		commands:    stream.NewStream[m.FileCommand]("mock-fs"),
+	}
+	go fs.handleCommands()
 	return fs
 }
 
-func (fs *mockFs) NewArchiveScanner(root m.Root) m.ArchiveScanner {
+func (fs *mockFs) Scan(root m.Root) {
 	s := &scanner{
 		root:        root,
 		eventStream: fs.eventStream,
-		commands:    stream.NewStream[m.FileCommand](root.String()),
 	}
-	go s.handleCommands()
-	return s
+	go s.scanArchive()
 }
 
-func (s *scanner) Send(cmd m.FileCommand) {
+func (s *mockFs) Send(cmd m.FileCommand) {
 	s.commands.Push(cmd)
 }
 
-func (s *scanner) handleCommands() {
+func (fs *mockFs) handleCommands() {
 	for {
-		for _, cmd := range s.commands.Pull() {
-			s.handleCommand(cmd)
+		for _, cmd := range fs.commands.Pull() {
+			fs.handleCommand(cmd)
 		}
 	}
 }
 
-func (s *scanner) handleCommand(cmd m.FileCommand) {
+func (fs *mockFs) handleCommand(cmd m.FileCommand) {
 	log.Printf("mock: cmd: %T: %v", cmd, cmd)
 	switch cmd := cmd.(type) {
-	case m.ScanArchive:
-		s.scanArchive()
-
 	case m.DeleteFile:
-		s.eventStream.Push(m.FileDeleted(cmd))
+		fs.eventStream.Push(m.FileDeleted(cmd))
 
 	case m.RenameFile:
-		s.eventStream.Push(m.FileRenamed(cmd))
+		fs.eventStream.Push(m.FileRenamed(cmd))
 
 	case m.CopyFile:
 		for _, meta := range metas[cmd.From.Root] {
@@ -68,7 +67,7 @@ func (s *scanner) handleCommand(cmd m.FileCommand) {
 					if copied > meta.Size {
 						copied = meta.Size
 					}
-					s.eventStream.Push(m.CopyingProgress(copied))
+					fs.eventStream.Push(m.CopyingProgress(copied))
 					if copied == meta.Size {
 						break
 					}
@@ -77,7 +76,7 @@ func (s *scanner) handleCommand(cmd m.FileCommand) {
 				break
 			}
 		}
-		s.eventStream.Push(m.FileCopied(cmd))
+		fs.eventStream.Push(m.FileCopied(cmd))
 	}
 }
 
