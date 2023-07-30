@@ -12,7 +12,7 @@ func (c *controller) handleEvent(event any) {
 	}
 	switch event := event.(type) {
 	case m.ArchiveScanned:
-		c.archiveScanned(event)
+		c.archive.archiveScanned(event)
 
 	case m.FileHashed:
 		c.fileHashed(event)
@@ -90,7 +90,7 @@ func (c *controller) handleEvent(event any) {
 		c.archive.currentFolder().makeSelectedVisible(c.archive.fileTreeLines)
 
 	case m.KeepOne:
-		// c.keepSelected()
+		c.keepSelected()
 
 	case m.KeepAll:
 		// TODO: Implement, maybe?

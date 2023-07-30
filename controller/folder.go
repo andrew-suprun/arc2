@@ -2,7 +2,9 @@ package controller
 
 import (
 	m "arc/model"
+	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -103,4 +105,54 @@ func (f *folder) makeSelectedVisible(fileTreeLines int) {
 	if f.offsetIdx < f.selectedIdx+1-fileTreeLines {
 		f.offsetIdx = f.selectedIdx + 1 - fileTreeLines
 	}
+}
+
+func (f *folder) uniqueName(base m.Base) m.Base {
+	parts := strings.Split(base.String(), ".")
+
+	var part string
+	if len(parts) == 1 {
+		part = stripIdx(parts[0])
+	} else {
+		part = stripIdx(parts[len(parts)-2])
+	}
+outer:
+	for idx := 1; ; idx++ {
+		var newBase m.Base
+		if len(parts) == 1 {
+			newBase = m.Base(fmt.Sprintf("%s [%d]", part, idx))
+		} else {
+			parts[len(parts)-2] = fmt.Sprintf("%s [%d]", part, idx)
+			newBase = m.Base(strings.Join(parts, "."))
+		}
+
+		for _, entry := range f.entries {
+			if entry.Base == newBase {
+				continue outer
+			}
+		}
+	}
+}
+
+type stripIdxState int
+
+const (
+	expectDigit stripIdxState = iota
+	expectDigitOrBacktick
+)
+
+func stripIdx(name string) string {
+	state := expectDigit
+	i := len(name) - 1
+	for ; i >= 0; i-- {
+		ch := name[i]
+		if ch >= '0' && ch <= '9' && (state == expectDigit || state == expectDigitOrBacktick) {
+			state = expectDigitOrBacktick
+		} else if ch == '\x60' && state == expectDigitOrBacktick {
+			break
+		} else {
+			return name
+		}
+	}
+	return name[:i]
 }

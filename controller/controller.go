@@ -34,6 +34,11 @@ type controller struct {
 	quit bool
 }
 
+type shared struct {
+	fps int
+	fs  m.FS
+}
+
 func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) {
 	defer func() {
 		err := recover()
@@ -65,7 +70,7 @@ func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 
 		c.frames++
 		screen := w.NewScreen(c.screenSize)
-		c.archive.rootWidget(c.archive.fileTreeLines).Render(screen, w.Position{X: 0, Y: 0}, c.screenSize)
+		c.archive.rootWidget().Render(screen, w.Position{X: 0, Y: 0}, c.screenSize)
 		renderer.Push(screen)
 	}
 }
@@ -141,16 +146,6 @@ func (c *controller) rootIdx(root m.Root) int {
 		}
 	}
 	return 0
-}
-
-func (c *controller) archiveScanned(event m.ArchiveScanned) {
-	archive := c.archives[event.Root]
-	archive.addFiles(event)
-	archive.sort()
-
-	for _, file := range event.Files {
-		archive.totalSize += file.Size
-	}
 }
 
 func (c *controller) fileHashed(event m.FileHashed) {
@@ -251,5 +246,12 @@ func (c *controller) analyzeDiscrepancies() {
 			}
 		}
 		archive.updateFolderStates("")
+	}
+}
+
+func (c *controller) keepSelected() {
+	selected := c.archive.currentFolder().selected()
+	for _, archive := range c.archives {
+		archive.keepFile(selected)
 	}
 }
