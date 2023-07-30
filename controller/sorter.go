@@ -7,6 +7,10 @@ import (
 )
 
 func (f *folder) sort() {
+	if !f.needsSorting {
+		return
+	}
+	f.needsSorting = false
 	selected := f.selected()
 	files := sliceBy(f.entries)
 	var slice sort.Interface

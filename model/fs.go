@@ -14,7 +14,7 @@ type FileCommand interface {
 }
 
 type DeleteFile struct {
-	Hash Hash
+	Hash Hash // TODO Need it?
 	Id   Id
 }
 
@@ -25,7 +25,7 @@ func (d DeleteFile) String() string {
 }
 
 type RenameFile struct {
-	Hash Hash
+	Hash Hash // TODO Need it?
 	From Id
 	To   Id
 }
@@ -37,7 +37,7 @@ func (r RenameFile) String() string {
 }
 
 type CopyFile struct {
-	Hash Hash
+	Hash Hash // TODO Need it?
 	From Id
 	To   []Id
 }

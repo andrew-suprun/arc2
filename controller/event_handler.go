@@ -15,7 +15,7 @@ func (c *controller) handleEvent(event any) {
 		c.archives[event.Root].archiveScanned(event)
 
 	case m.FileHashed:
-		c.fileHashed(event)
+		c.archives[event.Root].fileHashedEvent(event)
 
 	case m.ArchiveHashed:
 		c.archiveHashed(event)
@@ -24,10 +24,10 @@ func (c *controller) handleEvent(event any) {
 		// c.fileDeleted(event)
 
 	case m.FileRenamed:
-		// c.fileRenamed(event)
+		c.fileRenamed(event)
 
 	case m.FileCopied:
-		// c.fileCopied(event)
+		c.fileCopied(event)
 
 	case m.HashingProgress:
 		c.handleHashingProgress(event)
@@ -106,8 +106,11 @@ func (c *controller) handleEvent(event any) {
 	case m.Quit:
 		c.quit = true
 
-	case m.Debug:
-		// log.Println(c.screenString())
+	case m.DebugPrintState:
+		log.Println(c.String())
+
+	case m.DebugPrintRootWidget:
+		log.Println(c.archive.rootWidget())
 
 	default:
 		log.Panicf("### unhandled event: %#v", event)

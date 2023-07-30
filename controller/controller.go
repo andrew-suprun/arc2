@@ -4,6 +4,7 @@ import (
 	m "arc/model"
 	"arc/stream"
 	w "arc/widgets"
+	"fmt"
 	"log"
 	"runtime/debug"
 	"sort"
@@ -69,6 +70,7 @@ func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 		}
 
 		c.frames++
+		c.archive.currentFolder().sort()
 		screen := w.NewScreen(c.screenSize)
 		c.archive.rootWidget().Render(screen, w.Position{X: 0, Y: 0}, c.screenSize)
 		renderer.Push(screen)
@@ -148,23 +150,14 @@ func (c *controller) rootIdx(root m.Root) int {
 	return 0
 }
 
-func (c *controller) fileHashed(event m.FileHashed) {
-	archive := c.archives[event.Root]
-	folder := archive.getFolder(event.Path)
-	file := folder.entry(event.Base)
-	file.Hash = event.Hash
-	file.State = m.Resolved
+func (c *controller) String() string {
+	buf := &strings.Builder{}
+	fmt.Fprintln(buf, "Controller:")
+	for _, archive := range c.archives {
+		archive.printTo(buf)
+	}
 
-	archive.markDuplicates()
-	archive.updateFolderStates("")
-
-	archive.parents(file, func(parent *m.File) {
-		parent.Hashed = 0
-		parent.TotalHashed += file.Size
-	})
-
-	archive.totalHashed += file.Size
-	archive.fileHashed = 0
+	return buf.String()
 }
 
 func (c *controller) archiveHashed(event m.ArchiveHashed) {
@@ -174,6 +167,29 @@ func (c *controller) archiveHashed(event m.ArchiveHashed) {
 
 	if c.hashed == len(c.roots) {
 		c.analyzeDiscrepancies()
+	}
+}
+
+func (c *controller) fileRenamed(event m.FileRenamed) {
+	c.setState(event.To, m.Resolved)
+	c.setState(m.Id{Root: event.From.Root, Name: event.To.Name}, m.Resolved)
+	c.analyzeDiscrepancies()
+}
+
+func (c *controller) fileCopied(event m.FileCopied) {
+	c.setState(event.From, m.Resolved)
+	for _, to := range event.To {
+		c.setState(to, m.Resolved)
+	}
+	c.analyzeDiscrepancies()
+}
+
+func (c *controller) setState(id m.Id, state m.State) {
+	folder := c.archives[id.Root].folders[id.Path]
+	for _, entry := range folder.entries {
+		if entry.Base == id.Base {
+			entry.State = state
+		}
 	}
 }
 
@@ -251,7 +267,101 @@ func (c *controller) analyzeDiscrepancies() {
 
 func (c *controller) keepSelected() {
 	selected := c.archive.currentFolder().selected()
+	c.keepFile(selected)
+}
+
+func (c *controller) keepFile(file *m.File) {
 	for _, archive := range c.archives {
-		archive.keepFile(selected)
+		var sameName *m.File
+		folder := archive.folders[file.Path]
+		for _, entry := range folder.entries {
+			if entry.Name == file.Name {
+				sameName = entry
+				break
+			}
+		}
+		if sameName == nil {
+			continue
+		}
+		// TODO What if a sameName file is a folder?
+		if sameName.Hash != file.Hash {
+			newBase := folder.uniqueName(file.Base)
+			newId := m.Id{Root: file.Root, Name: m.Name{Path: file.Path, Base: newBase}}
+			c.shared.fs.Send(m.RenameFile{
+				Hash: sameName.Hash,
+				From: sameName.Id,
+				To:   newId,
+			})
+			archive.renameEntry(sameName.Name, newId.Name)
+			sameName.State = m.Pending
+			file.State = m.Pending
+		}
+	}
+
+	copyRoots := []m.Id{}
+	for _, archive := range c.archives {
+		sameHash := []*m.File{}
+		for _, folder := range archive.folders {
+			for _, entry := range folder.entries {
+				if entry.Hash == file.Hash {
+					sameHash = append(sameHash, entry)
+				}
+			}
+		}
+		if len(sameHash) == 0 {
+			copyRoots = append(copyRoots, m.Id{Root: archive.root, Name: file.Name})
+			newFile := &m.File{
+				Meta: m.Meta{
+					Id:      m.Id{Root: archive.root, Name: file.Name},
+					Size:    file.Size,
+					ModTime: file.ModTime,
+					Hash:    file.Hash,
+				},
+				Kind:  m.FileRegular,
+				State: m.Pending,
+			}
+			file.State = m.Pending
+			archive.addEntry(newFile)
+			continue
+		}
+		var keep *m.File
+		for _, entry := range sameHash {
+			if entry.Name == file.Name {
+				keep = entry
+			}
+		}
+		if keep == nil {
+			keep = sameHash[0]
+		}
+		if keep.Id != file.Id {
+			c.shared.fs.Send(m.RenameFile{
+				Hash: keep.Hash,
+				From: keep.Id,
+				To:   file.Id,
+			})
+			archive.renameEntry(keep.Name, file.Name)
+			keep.State = m.Pending
+			file.State = m.Pending
+		}
+
+		for _, other := range sameHash {
+			if other == keep {
+				continue
+			}
+
+			c.shared.fs.Send(m.DeleteFile{
+				Hash: keep.Hash,
+				Id:   other.Id,
+			})
+			archive.removeEntry(other.Name)
+		}
+	}
+	if len(copyRoots) > 0 {
+		c.shared.fs.Send(m.CopyFile{
+			Hash: file.Hash,
+			From: file.Id,
+			To:   copyRoots,
+		})
+		file.State = m.Pending
 	}
 }

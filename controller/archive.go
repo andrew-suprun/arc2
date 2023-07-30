@@ -2,6 +2,8 @@ package controller
 
 import (
 	m "arc/model"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -40,59 +42,50 @@ func newArchive(root m.Root, shared *shared) *archive {
 	}
 }
 
-func (a *archive) archiveScanned(event m.ArchiveScanned) {
-	a.addFiles(event)
-	a.sort()
-
-	for _, file := range event.Files {
-		a.totalSize += file.Size
-	}
-}
-
-func (a *archive) addFiles(event m.ArchiveScanned) {
-	for _, file := range event.Files {
-		a.addFile(&m.File{Meta: *file, State: m.Scanned})
-	}
-	a.currentPath = ""
-}
-
-func (a *archive) addFile(file *m.File) {
-	folder := a.getFolder(file.Path)
-	folder.addEntry(file)
-	name := file.ParentName()
-	for name.Base != "." {
-		parentFolder := a.getFolder(name.Path)
-		folderEntry := parentFolder.entry(name.Base)
-		if folderEntry != nil {
-			folderEntry.Size += file.Size
-			if folderEntry.ModTime.Before(file.ModTime) {
-				folderEntry.ModTime = file.ModTime
-			}
-		} else {
-			folderEntry := &m.File{
-				Meta: m.Meta{
-					Id: m.Id{
-						Root: file.Root,
-						Name: name,
-					},
-					Size:    file.Size,
-					ModTime: file.ModTime,
-				},
-				Kind:  m.FileFolder,
-				State: m.Scanned,
-			}
-			parentFolder.addEntry(folderEntry)
-
-		}
-
-		name = name.Path.ParentName()
-	}
-}
-
-func (a *archive) sort() {
+func (a *archive) printTo(buf *strings.Builder) {
+	fmt.Fprintf(buf, "  Archive: %q\n", a.root)
+	fmt.Fprintf(buf, "    Current Path: %q\n", a.currentPath)
 	for _, folder := range a.folders {
-		folder.sort()
+		folder.printTo(buf)
 	}
+}
+
+func (a *archive) addEntry(entry *m.File) {
+	folder := a.getFolder(entry.Path)
+	folder.entries = append(folder.entries, entry)
+	folder.needsSorting = true
+}
+
+func (a *archive) removeEntry(name m.Name) *m.File {
+	var removed *m.File
+	folder := a.getFolder(name.Path)
+	for idx, entry := range folder.entries {
+		if entry.Base == name.Base {
+			removed = entry
+			if idx < len(folder.entries)-1 {
+				folder.entries[idx] = folder.entries[len(folder.entries)-1]
+			}
+			folder.entries = folder.entries[:len(folder.entries)-1]
+		}
+	}
+	folder.needsSorting = true
+	return removed
+}
+
+func (a *archive) renameEntry(name, newName m.Name) {
+	if name.Path == newName.Path {
+		folder := a.getFolder(name.Path)
+		for _, entry := range folder.entries {
+			if entry.Base == name.Base {
+				entry.Base = newName.Base
+				folder.needsSorting = true
+				return
+			}
+		}
+	}
+	removed := a.removeEntry(name)
+	removed.Name = newName
+	a.addEntry(removed)
 }
 
 func (a *archive) currentFolder() *folder {
@@ -103,7 +96,9 @@ func (a *archive) getFolder(path m.Path) *folder {
 	pathFolder, ok := a.folders[path]
 	if !ok {
 		pathFolder = &folder{
+			path:          path,
 			sortAscending: []bool{true, false, false},
+			needsSorting:  true,
 		}
 		a.folders[path] = pathFolder
 	}

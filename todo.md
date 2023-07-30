@@ -1,4 +1,4 @@
-* refactor FS
+* share copy stats between archivers
 * implement missing events
 * show stats summary
 * filtering

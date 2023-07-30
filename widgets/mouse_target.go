@@ -28,5 +28,5 @@ func (t mouseTarget) String() string { return toString(t) }
 func (t mouseTarget) ToString(buf *strings.Builder, offset string) {
 	fmt.Fprintf(buf, offset+"MouseTarget(%v\n", t.command)
 	t.widget.ToString(buf, offset+"| ")
-	fmt.Fprintf(buf, offset+")\n", t.command)
+	fmt.Fprintf(buf, offset+")\n")
 }

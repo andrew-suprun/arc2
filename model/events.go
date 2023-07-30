@@ -170,9 +170,13 @@ type PgDn struct{}
 
 func (PgDn) event() {}
 
-type Debug struct{}
+type DebugPrintState struct{}
 
-func (Debug) event() {}
+func (DebugPrintState) event() {}
+
+type DebugPrintRootWidget struct{}
+
+func (DebugPrintRootWidget) event() {}
 
 type Quit struct{}
 

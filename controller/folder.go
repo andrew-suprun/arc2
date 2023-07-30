@@ -9,16 +9,22 @@ import (
 )
 
 type folder struct {
+	path               m.Path
 	entries            []*m.File
 	selectedIdx        int
 	offsetIdx          int
 	sortColumn         m.SortColumn
 	sortAscending      []bool
 	lastMouseEventTime time.Time
+	needsSorting       bool
 }
 
-func (f *folder) addEntry(entry *m.File) {
-	f.entries = append(f.entries, entry)
+func (f *folder) printTo(buf *strings.Builder) {
+	fmt.Fprintf(buf, "    Folder: %q\n", f.path)
+	fmt.Fprintln(buf, "      Entries:")
+	for _, entry := range f.entries {
+		fmt.Fprintf(buf, "        %s,\n", entry)
+	}
 }
 
 func (f *folder) selected() *m.File {
@@ -120,17 +126,17 @@ outer:
 	for idx := 1; ; idx++ {
 		var newBase m.Base
 		if len(parts) == 1 {
-			newBase = m.Base(fmt.Sprintf("%s [%d]", part, idx))
+			newBase = m.Base(fmt.Sprintf("%s%c%d", part, '\x60', idx))
 		} else {
-			parts[len(parts)-2] = fmt.Sprintf("%s [%d]", part, idx)
+			parts[len(parts)-2] = fmt.Sprintf("%s%c%d", part, '\x60', idx)
 			newBase = m.Base(strings.Join(parts, "."))
 		}
-
 		for _, entry := range f.entries {
 			if entry.Base == newBase {
 				continue outer
 			}
 		}
+		return newBase
 	}
 }
 
@@ -149,10 +155,10 @@ func stripIdx(name string) string {
 		if ch >= '0' && ch <= '9' && (state == expectDigit || state == expectDigitOrBacktick) {
 			state = expectDigitOrBacktick
 		} else if ch == '\x60' && state == expectDigitOrBacktick {
-			break
+			return name[:i]
 		} else {
 			return name
 		}
 	}
-	return name[:i]
+	return name
 }

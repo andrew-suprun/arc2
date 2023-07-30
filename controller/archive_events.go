@@ -2,10 +2,74 @@ package controller
 
 import (
 	m "arc/model"
-	"log"
 	"path/filepath"
 	"strings"
 )
+
+func (a *archive) archiveScanned(event m.ArchiveScanned) {
+	a.addFiles(event)
+
+	for _, file := range event.Files {
+		a.totalSize += file.Size
+	}
+}
+
+func (a *archive) addFiles(event m.ArchiveScanned) {
+	for _, file := range event.Files {
+		a.addFile(&m.File{Meta: *file, State: m.Scanned})
+	}
+	a.currentPath = ""
+}
+
+func (a *archive) addFile(file *m.File) {
+	a.addEntry(file)
+	name := file.ParentName()
+	for name.Base != "." {
+		parentFolder := a.getFolder(name.Path)
+		folderEntry := parentFolder.entry(name.Base)
+		if folderEntry != nil {
+			folderEntry.Size += file.Size
+			if folderEntry.ModTime.Before(file.ModTime) {
+				folderEntry.ModTime = file.ModTime
+			}
+		} else {
+			folderEntry := &m.File{
+				Meta: m.Meta{
+					Id: m.Id{
+						Root: file.Root,
+						Name: name,
+					},
+					Size:    file.Size,
+					ModTime: file.ModTime,
+				},
+				Kind:  m.FileFolder,
+				State: m.Scanned,
+			}
+			a.addEntry(folderEntry)
+
+		}
+
+		name = name.Path.ParentName()
+	}
+}
+
+func (a *archive) fileHashedEvent(event m.FileHashed) {
+	folder := a.getFolder(event.Path)
+	file := folder.entry(event.Base)
+	file.Hash = event.Hash
+	file.State = m.Resolved
+
+	a.markDuplicates()
+	a.updateFolderStates("")
+
+	a.parents(file, func(parent *m.File) {
+		parent.Hashed = 0
+		parent.TotalHashed += file.Size
+	})
+
+	a.totalHashed += file.Size
+	a.fileHashed = 0
+}
 
 func (a *archive) enter() {
 	file := a.currentFolder().selected()
@@ -36,44 +100,7 @@ func (a *archive) mouseTarget(cmd any) {
 	case m.SortColumn:
 		folder := a.currentFolder()
 		folder.selectSortColumn(cmd)
-		folder.sort()
+		folder.needsSorting = true
 		folder.makeSelectedVisible(a.fileTreeLines)
 	}
-}
-
-func (a *archive) keepFile(file *m.File) {
-	folder := a.folders[file.Path]
-	var sameName *m.File
-	for _, entry := range folder.entries {
-		if entry.Name == file.Name {
-			sameName = entry
-			break
-		}
-	}
-	if sameName.Hash != file.Hash {
-		newBase := folder.uniqueName(file.Base)
-		newId := m.Id{Root: file.Root, Name: m.Name{Path: file.Path, Base: newBase}}
-		log.Printf("keepFile: rename from: %q to %q", file.Id, newId)
-		// TODO Finish
-
-	}
-
-	sameHash := []*m.File{}
-	for _, folder := range a.folders {
-		for _, entry := range folder.entries {
-			if entry.Hash == file.Hash {
-				sameHash = append(sameHash, entry)
-			}
-		}
-	}
-	var keep *m.File
-	for _, entry := range sameHash {
-		if entry.Name == file.Name {
-			keep = entry
-		}
-	}
-	if keep == nil {
-		keep = sameHash[0]
-	}
-
 }
