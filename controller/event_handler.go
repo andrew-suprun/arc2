@@ -21,7 +21,7 @@ func (c *controller) handleEvent(event any) {
 		c.archiveHashed(event)
 
 	case m.FileDeleted:
-		// c.fileDeleted(event)
+		c.fileDeleted(event)
 
 	case m.FileRenamed:
 		c.fileRenamed(event)

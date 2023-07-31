@@ -21,6 +21,8 @@ type folder struct {
 
 func (f *folder) printTo(buf *strings.Builder) {
 	fmt.Fprintf(buf, "    Folder: %q\n", f.path)
+	fmt.Fprintf(buf, "      Selected Idx: %d\n", f.selectedIdx)
+	fmt.Fprintf(buf, "      Offset Idx: %d\n", f.offsetIdx)
 	fmt.Fprintln(buf, "      Entries:")
 	for _, entry := range f.entries {
 		fmt.Fprintf(buf, "        %s,\n", entry)
@@ -28,10 +30,13 @@ func (f *folder) printTo(buf *strings.Builder) {
 }
 
 func (f *folder) selected() *m.File {
-	if f.selectedIdx < len(f.entries) {
-		return f.entries[f.selectedIdx]
+	if len(f.entries) == 0 {
+		return nil
 	}
-	return nil
+	if f.selectedIdx >= len(f.entries) {
+		f.selectedIdx = len(f.entries) - 1
+	}
+	return f.entries[f.selectedIdx]
 }
 
 func (f *folder) entry(base m.Base) *m.File {

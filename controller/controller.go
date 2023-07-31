@@ -170,6 +170,19 @@ func (c *controller) archiveHashed(event m.ArchiveHashed) {
 	}
 }
 
+func (c *controller) fileDeleted(event m.FileDeleted) {
+	for _, archive := range c.archives {
+		for _, folder := range archive.folders {
+			for _, entry := range folder.entries {
+				if entry.Hash == event.Hash {
+					entry.State = m.Resolved
+				}
+			}
+		}
+	}
+	c.archive.updateFolderStates("")
+}
+
 func (c *controller) fileRenamed(event m.FileRenamed) {
 	c.setState(event.From, m.Resolved)
 	c.setState(m.Id{Root: event.From.Root, Name: event.To}, m.Resolved)
@@ -368,6 +381,7 @@ func (c *controller) keepFile(file *m.File) {
 				Hash: keep.Hash,
 				Id:   other.Id,
 			})
+			file.State = m.Pending
 			archive.removeEntry(other.Name)
 		}
 	}
