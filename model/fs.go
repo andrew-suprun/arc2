@@ -27,7 +27,7 @@ func (d DeleteFile) String() string {
 type RenameFile struct {
 	Hash Hash // TODO Need it?
 	From Id
-	To   Id
+	To   Name
 }
 
 func (RenameFile) cmd() {}

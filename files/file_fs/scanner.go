@@ -33,6 +33,12 @@ type scanner struct {
 }
 
 func (s *scanner) scanArchive() {
+	defer func() {
+		s.events.Push(m.ArchiveHashed{
+			Root: s.root,
+		})
+	}()
+
 	fsys := os.DirFS(s.root.String())
 	fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if s.lc.ShoudStop() || !d.Type().IsRegular() || strings.HasPrefix(d.Name(), ".") {

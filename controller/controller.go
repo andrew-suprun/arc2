@@ -171,8 +171,8 @@ func (c *controller) archiveHashed(event m.ArchiveHashed) {
 }
 
 func (c *controller) fileRenamed(event m.FileRenamed) {
-	c.setState(event.To, m.Resolved)
-	c.setState(m.Id{Root: event.From.Root, Name: event.To.Name}, m.Resolved)
+	c.setState(event.From, m.Resolved)
+	c.setState(m.Id{Root: event.From.Root, Name: event.To}, m.Resolved)
 	c.analyzeDiscrepancies()
 }
 
@@ -240,11 +240,22 @@ func (c *controller) analyzeDiscrepancies() {
 			for _, entry := range folder.entries {
 				allNames[entry.Name] = entry.Hash
 				archiveNames[entry.Root][entry.Name] = entry.Hash
+				if entry.State == m.Divergent {
+					entry.State = m.Resolved
+				}
 			}
 		}
 	}
 
 	divergency := map[m.Name]struct{}{}
+	for name := range allNames {
+		for _, root := range c.roots {
+			if _, ok := archiveNames[root][name]; !ok {
+				divergency[name] = struct{}{}
+			}
+		}
+	}
+
 	for name, hash := range allNames {
 		for _, archNames := range archiveNames {
 			if archNames[name] != hash {
@@ -274,6 +285,9 @@ func (c *controller) keepFile(file *m.File) {
 	for _, archive := range c.archives {
 		var sameName *m.File
 		folder := archive.folders[file.Path]
+		if folder == nil {
+			continue
+		}
 		for _, entry := range folder.entries {
 			if entry.Name == file.Name {
 				sameName = entry
@@ -285,14 +299,15 @@ func (c *controller) keepFile(file *m.File) {
 		}
 		// TODO What if a sameName file is a folder?
 		if sameName.Hash != file.Hash {
+			log.Printf("keepFile: folder: %v, file: %s", folder, file)
 			newBase := folder.uniqueName(file.Base)
-			newId := m.Id{Root: file.Root, Name: m.Name{Path: file.Path, Base: newBase}}
+			newName := m.Name{Path: file.Path, Base: newBase}
 			c.shared.fs.Send(m.RenameFile{
 				Hash: sameName.Hash,
 				From: sameName.Id,
-				To:   newId,
+				To:   newName,
 			})
-			archive.renameEntry(sameName.Name, newId.Name)
+			archive.renameEntry(sameName.Name, newName)
 			sameName.State = m.Pending
 			file.State = m.Pending
 		}
@@ -333,11 +348,11 @@ func (c *controller) keepFile(file *m.File) {
 		if keep == nil {
 			keep = sameHash[0]
 		}
-		if keep.Id != file.Id {
+		if keep.Name != file.Name {
 			c.shared.fs.Send(m.RenameFile{
 				Hash: keep.Hash,
 				From: keep.Id,
-				To:   file.Id,
+				To:   file.Name,
 			})
 			archive.renameEntry(keep.Name, file.Name)
 			keep.State = m.Pending

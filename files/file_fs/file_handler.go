@@ -4,6 +4,7 @@ import (
 	m "arc/model"
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 )
 
 func (f *fileFs) deleteFile(delete m.DeleteFile) {
+	log.Printf("### delete %q", delete.Id)
 	defer func() {
 		f.events.Push(m.FileDeleted(delete))
 	}()
@@ -35,6 +37,7 @@ func (f *fileFs) deleteFile(delete m.DeleteFile) {
 }
 
 func (f *fileFs) renameFile(rename m.RenameFile) {
+	log.Printf("### rename %q to %q", rename.From, rename.To)
 	defer func() {
 		f.events.Push(m.FileRenamed(rename))
 	}()
@@ -50,6 +53,11 @@ func (f *fileFs) renameFile(rename m.RenameFile) {
 }
 
 func (f *fileFs) copyFile(copy m.CopyFile) {
+	log.Printf("### copy from %q", copy.From)
+	for _, to := range copy.To {
+		log.Printf("### copy   to %q", to)
+
+	}
 	defer func() {
 		f.events.Push(m.FileCopied(copy))
 	}()
