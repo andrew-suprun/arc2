@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-func (a *archive) fileScanned(event m.FileScanned) {
-	a.addFile(&m.File{Meta: *event.Meta, State: m.Scanned})
-	a.totalSize += event.Size
+func (a *archive) fileScanned(file *m.File) {
+	a.addFile(file)
+	a.totalSize += file.Size
 }
 
 func (a *archive) archiveScanned() {
@@ -53,7 +53,6 @@ func (a *archive) fileHashedEvent(event m.FileHashed) {
 	file.Hash = event.Hash
 	file.State = m.Resolved
 
-	a.markDuplicates()
 	a.updateFolderStates("")
 
 	a.parents(file, func(parent *m.File) {

@@ -113,32 +113,6 @@ func (a *archive) parents(file *m.File, proc func(parent *m.File)) {
 	}
 }
 
-func (a *archive) markDuplicates() {
-	hashes := map[m.Hash]int{}
-	for _, folder := range a.folders {
-		for _, entry := range folder.entries {
-			if entry.Hash != "" {
-				hashes[entry.Hash]++
-			}
-		}
-	}
-
-	for _, folder := range a.folders {
-		for _, entry := range folder.entries {
-			if hashes[entry.Hash] > 1 {
-				entry.State = m.Duplicate
-			}
-		}
-	}
-
-	a.duplicateFiles = 0
-	for _, count := range hashes {
-		if count > 1 {
-			a.duplicateFiles++
-		}
-	}
-}
-
 func (a *archive) updateFolderStates(path m.Path) m.State {
 	state := m.Resolved
 	folder := a.getFolder(path)

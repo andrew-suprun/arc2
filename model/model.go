@@ -75,6 +75,7 @@ type File struct {
 	State
 	Hashed      uint64
 	TotalHashed uint64
+	Counts      []int
 }
 
 func (f *File) String() string {
@@ -107,7 +108,6 @@ const (
 	Hashing
 	Pending
 	Divergent
-	Duplicate
 )
 
 func (s State) String() string {
@@ -122,8 +122,6 @@ func (s State) String() string {
 		return "Pending"
 	case Divergent:
 		return "Divergent"
-	case Duplicate:
-		return "Duplicate"
 	}
 	return "UNKNOWN FILE STATE"
 }

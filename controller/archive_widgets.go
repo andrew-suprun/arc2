@@ -89,16 +89,31 @@ func state(file *m.File) w.Widget {
 		value := float64(file.TotalHashed+file.Hashed) / float64(file.Size)
 		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 	}
-	text := ""
 	switch file.State {
 	case m.Pending:
-		text = "Pending"
+		return w.Text("Pending").Width(10)
 	case m.Divergent:
-		text = "Divergent"
-	case m.Duplicate:
-		text = "Duplicate"
+		break
+	default:
+		return w.Text("").Width(10)
 	}
-	return w.Text(text).Width(10)
+
+	buf := &strings.Builder{}
+	for _, count := range file.Counts {
+		fmt.Fprintf(buf, "%c", countRune(count))
+	}
+
+	return w.Text(buf.String()).Width(10)
+}
+
+func countRune(count int) rune {
+	if count == 0 {
+		return '-'
+	}
+	if count > 9 {
+		return '*'
+	}
+	return '0' + rune(count)
 }
 
 func (a *archive) sortIndicator(column m.SortColumn) string {
@@ -209,7 +224,7 @@ func (a *archive) statusColor(file *m.File) byte {
 		return 195
 	case m.Pending:
 		return 214
-	case m.Duplicate, m.Divergent:
+	case m.Divergent:
 		return 196
 	}
 	return 231

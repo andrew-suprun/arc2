@@ -15,6 +15,8 @@ import (
 type controller struct {
 	roots    []m.Root
 	archives map[m.Root]*archive
+	byId     map[m.Id]*m.File
+	byHash   map[m.Hash][]*m.File
 	archive  *archive
 	hashed   int
 
@@ -81,6 +83,8 @@ func newController(roots []m.Root) *controller {
 	c := &controller{
 		roots:    roots,
 		archives: map[m.Root]*archive{},
+		byId:     map[m.Id]*m.File{},
+		byHash:   map[m.Hash][]*m.File{},
 		shared:   &shared{},
 	}
 	return c
@@ -187,6 +191,7 @@ func (c *controller) fileRenamed(event m.FileRenamed) {
 	c.setState(event.From, m.Resolved)
 	c.setState(m.Id{Root: event.From.Root, Name: event.To}, m.Resolved)
 	c.analyzeDiscrepancies()
+	log.Printf("fileRenamed: analyzeDiscrepancies")
 }
 
 func (c *controller) fileCopied(event m.FileCopied) {
@@ -195,15 +200,7 @@ func (c *controller) fileCopied(event m.FileCopied) {
 		c.setState(to, m.Resolved)
 	}
 	c.analyzeDiscrepancies()
-}
-
-func (c *controller) setState(id m.Id, state m.State) {
-	folder := c.archives[id.Root].folders[id.Path]
-	for _, entry := range folder.entries {
-		if entry.Base == id.Base {
-			entry.State = state
-		}
-	}
+	log.Printf("fileCopied: analyzeDiscrepancies")
 }
 
 func (c *controller) handleHashingProgress(event m.HashingProgress) {
@@ -242,56 +239,74 @@ func (c *controller) handleCopyingProgress(event m.CopyingProgress) {
 }
 
 func (c *controller) analyzeDiscrepancies() {
-	allNames := map[m.Name]m.Hash{}
-	archiveNames := map[m.Root]map[m.Name]m.Hash{}
-	for _, root := range c.roots {
-		archiveNames[root] = map[m.Name]m.Hash{}
-	}
-
-	for _, archive := range c.archives {
-		for _, folder := range archive.folders {
-			for _, entry := range folder.entries {
-				allNames[entry.Name] = entry.Hash
-				archiveNames[entry.Root][entry.Name] = entry.Hash
-				if entry.State == m.Divergent {
-					entry.State = m.Resolved
+	for _, files := range c.byHash {
+		state := m.Resolved
+		if len(files) != len(c.roots) {
+			state = m.Divergent
+		}
+		if state != m.Divergent {
+			name := files[0].Name
+			for _, file := range files {
+				if file.Name != name {
+					state = m.Divergent
+					break
 				}
 			}
 		}
-	}
 
-	divergency := map[m.Name]struct{}{}
-	for name := range allNames {
-		for _, root := range c.roots {
-			if _, ok := archiveNames[root][name]; !ok {
-				divergency[name] = struct{}{}
-			}
-		}
-	}
-
-	for name, hash := range allNames {
-		for _, archNames := range archiveNames {
-			if archNames[name] != hash {
-				divergency[name] = struct{}{}
-			}
-		}
-	}
-
-	for _, archive := range c.archives {
-		for _, folder := range archive.folders {
-			for _, entry := range folder.entries {
-				if _, ok := divergency[entry.Name]; ok && entry.State != m.Duplicate {
-					entry.State = m.Divergent
-				}
-			}
-		}
-		archive.updateFolderStates("")
+		c.setStates(files, state)
+		c.setCounts(files, state)
+		c.updateFolderStates()
 	}
 }
 
 func (c *controller) keepSelected() {
 	selected := c.archive.currentFolder().selected()
 	c.keepFile(selected)
+}
+
+func (c *controller) setStates(files []*m.File, state m.State) {
+	for _, file := range files {
+		c.setState(file.Id, state)
+	}
+}
+
+func (c *controller) setState(id m.Id, state m.State) {
+	folder := c.archives[id.Root].folders[id.Path]
+	for _, entry := range folder.entries {
+		if entry.Base == id.Base {
+			entry.State = state
+		}
+	}
+}
+
+func (c *controller) setCounts(files []*m.File, state m.State) {
+	if state != m.Divergent {
+		for _, file := range files {
+			file.Counts = nil
+		}
+		return
+	}
+
+	counts := make([]int, len(c.roots))
+
+	for _, file := range files {
+		for i, root := range c.roots {
+			if root == file.Root {
+				counts[i]++
+			}
+		}
+	}
+
+	for _, file := range files {
+		file.Counts = counts
+	}
+}
+
+func (c *controller) updateFolderStates() {
+	for _, archive := range c.archives {
+		archive.updateFolderStates("")
+	}
 }
 
 func (c *controller) keepFile(file *m.File) {
