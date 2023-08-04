@@ -6,19 +6,13 @@ import (
 	"strings"
 )
 
-func (a *archive) archiveScanned(event m.ArchiveScanned) {
-	a.addFiles(event)
-
-	for _, file := range event.Files {
-		a.totalSize += file.Size
-	}
+func (a *archive) fileScanned(event m.FileScanned) {
+	a.addFile(&m.File{Meta: *event.Meta, State: m.Scanned})
+	a.totalSize += event.Size
 }
 
-func (a *archive) addFiles(event m.ArchiveScanned) {
-	for _, file := range event.Files {
-		a.addFile(&m.File{Meta: *file, State: m.Scanned})
-	}
-	a.currentPath = ""
+func (a *archive) archiveScanned() {
+	// TODO Need this?
 }
 
 func (a *archive) addFile(file *m.File) {

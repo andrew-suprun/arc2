@@ -9,15 +9,20 @@ type Event interface {
 	event()
 }
 
+type FileScanned struct {
+	*Meta
+}
+
+func (FileScanned) event() {}
+
 type ArchiveScanned struct {
-	Root  Root
-	Files []*Meta
+	Root
 }
 
 func (ArchiveScanned) event() {}
 
 type ArchiveHashed struct {
-	Root Root
+	Root
 }
 
 func (ArchiveHashed) event() {}

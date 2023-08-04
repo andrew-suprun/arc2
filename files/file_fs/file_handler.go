@@ -67,7 +67,7 @@ func (f *fileFs) copyFile(copy m.CopyFile) {
 	reported := uint64(0)
 
 	for i := range copy.To {
-		events[i] = make(chan event)
+		events[i] = make(chan event, 1)
 	}
 
 	go f.reader(copy.From, copy.To, events)

@@ -72,12 +72,15 @@ func (s *scanner) scanArchive() {
 		s.byInode[sys.Ino] = file
 		s.files = append(s.files, file)
 
+		s.events.Push(m.FileScanned{
+			Meta: file,
+		})
+
 		return nil
 	})
 
 	s.events.Push(m.ArchiveScanned{
-		Root:  s.root,
-		Files: s.files,
+		Root: s.root,
 	})
 
 	s.readMeta()
