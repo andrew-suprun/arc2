@@ -188,19 +188,14 @@ func (c *controller) fileDeleted(event m.FileDeleted) {
 }
 
 func (c *controller) fileRenamed(event m.FileRenamed) {
-	c.setState(event.From, m.Resolved)
-	c.setState(m.Id{Root: event.From.Root, Name: event.To}, m.Resolved)
-	c.analyzeDiscrepancies()
+	c.analyzeDiscrepancy(event.Hash)
+	c.updateFolderStates()
 	log.Printf("fileRenamed: analyzeDiscrepancies")
 }
 
 func (c *controller) fileCopied(event m.FileCopied) {
-	c.setState(event.From, m.Resolved)
-	for _, to := range event.To {
-		c.setState(to, m.Resolved)
-	}
-	c.analyzeDiscrepancies()
-	log.Printf("fileCopied: analyzeDiscrepancies")
+	c.analyzeDiscrepancy(event.Hash)
+	c.updateFolderStates()
 }
 
 func (c *controller) handleHashingProgress(event m.HashingProgress) {
@@ -239,25 +234,39 @@ func (c *controller) handleCopyingProgress(event m.CopyingProgress) {
 }
 
 func (c *controller) analyzeDiscrepancies() {
-	for _, files := range c.byHash {
-		state := m.Resolved
-		if len(files) != len(c.roots) {
-			state = m.Divergent
-		}
-		if state != m.Divergent {
-			name := files[0].Name
-			for _, file := range files {
-				if file.Name != name {
-					state = m.Divergent
-					break
-				}
+	for hash := range c.byHash {
+		c.analyzeDiscrepancy(hash)
+	}
+	c.updateFolderStates()
+}
+
+var noName = m.Name{}
+
+func (c *controller) analyzeDiscrepancy(hash m.Hash) {
+	log.Printf("analyzeDiscrepancies: hash: %q", hash)
+	files := c.byHash[hash]
+	for _, file := range files {
+		log.Printf("analyzeDiscrepancies:     file: %q", file.Id)
+	}
+	state := m.Resolved
+	if len(files) != len(c.roots) {
+		state = m.Divergent
+	}
+	if state != m.Divergent {
+		name := m.Name{}
+		for _, file := range files {
+			if name == noName {
+				name = file.Name
+			}
+			if file.Name != name {
+				state = m.Divergent
+				break
 			}
 		}
-
-		c.setStates(files, state)
-		c.setCounts(files, state)
-		c.updateFolderStates()
 	}
+
+	c.setStates(files, state)
+	c.setCounts(files, state)
 }
 
 func (c *controller) keepSelected() {
@@ -272,10 +281,12 @@ func (c *controller) setStates(files []*m.File, state m.State) {
 }
 
 func (c *controller) setState(id m.Id, state m.State) {
+	log.Printf("setState: id: %q, state: %s", id, state)
 	folder := c.archives[id.Root].folders[id.Path]
 	for _, entry := range folder.entries {
 		if entry.Base == id.Base {
 			entry.State = state
+			break
 		}
 	}
 }
@@ -327,7 +338,6 @@ func (c *controller) keepFile(file *m.File) {
 		}
 		// TODO What if a sameName file is a folder?
 		if sameName.Hash != file.Hash {
-			log.Printf("keepFile: folder: %v, file: %s", folder, file)
 			newBase := folder.uniqueName(file.Base)
 			newName := m.Name{Path: file.Path, Base: newBase}
 			c.shared.fs.Send(m.RenameFile{
@@ -365,6 +375,7 @@ func (c *controller) keepFile(file *m.File) {
 			}
 			file.State = m.Pending
 			archive.addEntry(newFile)
+			c.byHash[newFile.Hash] = append(c.byHash[newFile.Hash], newFile)
 			continue
 		}
 		var keep *m.File
@@ -398,6 +409,14 @@ func (c *controller) keepFile(file *m.File) {
 			})
 			file.State = m.Pending
 			archive.removeEntry(other.Name)
+			files := c.byHash[keep.Hash]
+			for i, file := range files {
+				if file.Id == other.Id {
+					files[i] = files[len(files)-1]
+					c.byHash[keep.Hash] = files[:len(files)-1]
+					break
+				}
+			}
 		}
 	}
 	if len(copyRoots) > 0 {

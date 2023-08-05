@@ -63,7 +63,7 @@ func (fs *mockFs) handleCommand(cmd m.FileCommand) {
 	case m.CopyFile:
 		for _, meta := range metas[cmd.From.Root] {
 			if meta.Id.Name == cmd.From.Name {
-				for copied := uint64(0); ; copied += 50000 {
+				for copied := uint64(0); ; copied += 10000 {
 					if copied > meta.Size {
 						copied = meta.Size
 					}

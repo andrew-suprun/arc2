@@ -1,3 +1,4 @@
+* show copy file progress bar
 * "resolve all" key shortcut
 * share copy stats between archivers
 * implement missing events
