@@ -87,14 +87,12 @@ func (s *scanner) scanArchive() {
 		totalSize += file.Size
 	}
 
-	files := []*m.Meta{}
 	for _, meta := range archFiles {
 		meta := &m.Meta{
 			Id:      meta.Id,
 			Size:    meta.Size,
 			ModTime: meta.ModTime,
 		}
-		files = append(files, meta)
 		s.eventStream.Push(m.FileScanned{
 			Meta: meta,
 		})

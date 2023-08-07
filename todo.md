@@ -1,7 +1,8 @@
+* fix renaming folder
+* implement delete event
 * show copy file progress bar
 * "resolve all" key shortcut
 * share copy stats between archivers
-* implement missing events
 * show stats summary
 * filtering
 * keyboard shortcuts for selecting sorting order

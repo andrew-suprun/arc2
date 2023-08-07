@@ -97,8 +97,11 @@ func (c *controller) handleEvent(event any) {
 		c.tab()
 		c.archive.currentFolder().makeSelectedVisible(c.archive.fileTreeLines)
 
-	case m.KeepOne:
-		c.keepSelected()
+	case m.ResolveOne:
+		c.resolveSelected()
+
+	case m.ResolveAll:
+		c.resolveAll()
 
 	case m.KeepAll:
 		// TODO: Implement, maybe?

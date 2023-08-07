@@ -177,7 +177,7 @@ func (device *tcellRenderer) handleKeyEvent(key *tcell.EventKey) {
 
 	// case "Esc":
 
-	case "Ctrl+R":
+	case "Ctrl+F":
 		device.controllerEvents.Push(m.RevealInFinder{})
 
 	case "Home":
@@ -204,11 +204,14 @@ func (device *tcellRenderer) handleKeyEvent(key *tcell.EventKey) {
 	case "Right":
 		device.controllerEvents.Push(m.Enter{})
 
-	case "Ctrl+K":
-		device.controllerEvents.Push(m.KeepOne{})
+	case "Ctrl+R":
+		device.controllerEvents.Push(m.ResolveOne{})
 
 	case "Ctrl+A":
-		device.controllerEvents.Push(m.KeepAll{})
+		device.controllerEvents.Push(m.ResolveAll{})
+
+	// case "Ctrl+A":
+	// 	device.controllerEvents.Push(m.KeepAll{})
 
 	case "Tab":
 		device.controllerEvents.Push(m.Tab{})

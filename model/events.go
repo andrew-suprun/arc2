@@ -132,9 +132,13 @@ type MoveSelection struct{ Lines int }
 
 func (MoveSelection) event() {}
 
-type KeepOne struct{}
+type ResolveOne struct{}
 
-func (KeepOne) event() {}
+func (ResolveOne) event() {}
+
+type ResolveAll struct{}
+
+func (ResolveAll) event() {}
 
 type KeepAll struct{}
 

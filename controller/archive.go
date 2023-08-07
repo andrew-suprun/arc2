@@ -9,6 +9,7 @@ import (
 
 type archive struct {
 	root        m.Root
+	idx         int
 	folders     map[m.Path]*folder
 	currentPath m.Path
 
@@ -34,9 +35,10 @@ type progressInfo struct {
 	timeRemaining time.Duration
 }
 
-func newArchive(root m.Root, shared *shared) *archive {
+func newArchive(root m.Root, idx int, shared *shared) *archive {
 	return &archive{
 		root:    root,
+		idx:     idx,
 		folders: map[m.Path]*folder{},
 		shared:  shared,
 	}

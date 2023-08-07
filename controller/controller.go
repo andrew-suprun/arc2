@@ -60,8 +60,8 @@ func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 
 	go ticker(events)
 
-	for _, root := range roots {
-		c.archives[root] = newArchive(root, c.shared)
+	for idx, root := range roots {
+		c.archives[root] = newArchive(root, idx, c.shared)
 		c.shared.fs.Scan(root)
 	}
 	c.archive = c.archives[roots[0]]
@@ -269,9 +269,23 @@ func (c *controller) analyzeDiscrepancy(hash m.Hash) {
 	c.setCounts(files, state)
 }
 
-func (c *controller) keepSelected() {
+func (c *controller) resolveSelected() {
 	selected := c.archive.currentFolder().selected()
-	c.keepFile(selected)
+	c.resolveFile(selected)
+}
+
+func (c *controller) resolveAll() {
+	c.resolveFolder(c.archive.currentFolder())
+}
+
+func (c *controller) resolveFolder(folder *folder) {
+	for _, file := range folder.entries {
+		if file.Kind == m.FileFolder {
+			c.resolveFolder(c.archive.folders[m.Path(file.Name.String())])
+		} else if file.State == m.Divergent && file.Counts[c.archive.idx] == 1 {
+			c.resolveFile(file)
+		}
+	}
 }
 
 func (c *controller) setStates(files []*m.File, state m.State) {
@@ -320,7 +334,7 @@ func (c *controller) updateFolderStates() {
 	}
 }
 
-func (c *controller) keepFile(file *m.File) {
+func (c *controller) resolveFile(file *m.File) {
 	for _, archive := range c.archives {
 		var sameName *m.File
 		folder := archive.folders[file.Path]
