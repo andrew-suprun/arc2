@@ -46,7 +46,8 @@ func (fs *fileFs) Send(cmd m.FileCommand) {
 
 func (fs *fileFs) handleEvents() {
 	for {
-		for _, cmd := range fs.commands.Pull() {
+		cmds, _ := fs.commands.Pull()
+		for _, cmd := range cmds {
 			fs.handleCommand(cmd)
 		}
 	}

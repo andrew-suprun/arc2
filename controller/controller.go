@@ -67,7 +67,8 @@ func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 	c.archive = c.archives[roots[0]]
 
 	for !c.quit {
-		for _, event := range events.Pull() {
+		events, _ := events.Pull()
+		for _, event := range events {
 			c.handleEvent(event)
 		}
 

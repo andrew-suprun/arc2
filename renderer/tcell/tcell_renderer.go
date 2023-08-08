@@ -77,7 +77,7 @@ func (r *tcellRenderer) handleEvents() {
 
 	for {
 		lastScreenCommandIdx := -1
-		commands := r.commands.Pull()
+		commands, _ := r.commands.Pull()
 		for idx, cmd := range commands {
 			if _, ok := cmd.(screenCommand); ok {
 				lastScreenCommandIdx = idx
