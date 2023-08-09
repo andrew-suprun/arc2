@@ -47,6 +47,12 @@ func (a *archive) addFile(file *m.File) {
 	}
 }
 
+func (a *archive) addEntry(entry *m.File) {
+	folder := a.getFolder(entry.Path)
+	folder.entries = append(folder.entries, entry)
+	folder.needsSorting = true
+}
+
 func (a *archive) fileHashedEvent(event m.FileHashed) {
 	folder := a.getFolder(event.Path)
 	file := folder.entry(event.Base)

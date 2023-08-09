@@ -3,6 +3,7 @@ package controller
 import (
 	m "arc/model"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 )
@@ -52,12 +53,6 @@ func (a *archive) printTo(buf *strings.Builder) {
 	}
 }
 
-func (a *archive) addEntry(entry *m.File) {
-	folder := a.getFolder(entry.Path)
-	folder.entries = append(folder.entries, entry)
-	folder.needsSorting = true
-}
-
 func (a *archive) removeEntry(name m.Name) *m.File {
 	var removed *m.File
 	folder := a.getFolder(name.Path)
@@ -74,20 +69,52 @@ func (a *archive) removeEntry(name m.Name) *m.File {
 	return removed
 }
 
-func (a *archive) renameEntry(name, newName m.Name) {
-	if name.Path == newName.Path {
-		folder := a.getFolder(name.Path)
+func (a *archive) clearPath(path m.Path) {
+	log.Printf("clearPath: >>> root: %q, path: %q", a.root, path)
+	defer log.Printf("clearPath: <<< root: %q, path: %q", a.root, path)
+
+	parentName := path.ParentName()
+	if parentName.Base == "." {
+		return
+	}
+	folder := a.getFolder(parentName.Path)
+	for _, file := range folder.entries {
+		if file.Base == parentName.Base {
+			if file.Kind == m.FileFolder {
+				return
+			}
+
+			newBase := folder.uniqueName(file.Base)
+			newName := m.Name{Path: file.Path, Base: newBase}
+			a.renameEntry(file, newName)
+			file.State = m.Pending
+		}
+	}
+	a.clearPath(parentName.Path)
+}
+
+func (a *archive) renameEntry(file *m.File, newName m.Name) {
+	log.Printf("renameEntry: >>> from: %q, to: %q", file.Id, newName)
+	defer log.Printf("renameEntry: <<< from: %q, to: %q", file.Id, newName)
+	a.shared.fs.Send(m.RenameFile{
+		Hash: file.Hash,
+		From: file.Id,
+		To:   newName,
+	})
+
+	if file.Path == newName.Path {
+		folder := a.getFolder(file.Path)
 		for _, entry := range folder.entries {
-			if entry.Base == name.Base {
+			if entry.Base == file.Base {
 				entry.Base = newName.Base
 				folder.needsSorting = true
 				return
 			}
 		}
 	}
-	removed := a.removeEntry(name)
+	removed := a.removeEntry(file.Name)
 	removed.Name = newName
-	a.addEntry(removed)
+	a.addFile(removed)
 }
 
 func (a *archive) currentFolder() *folder {

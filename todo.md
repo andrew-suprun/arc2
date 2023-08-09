@@ -1,3 +1,5 @@
+* redo resolveRegularFile()
+* ??? make File an interface, maybe
 * fix renaming folder
 * implement delete event
 * show copy file progress bar

@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"strings"
 )
@@ -43,6 +44,12 @@ func (pb progressBar) Render(screen *Screen, pos Position, size Size) {
 	progress := int(math.Round(float64(size.Width*8) * float64(pb.value)))
 	idx := 0
 	for ; idx < progress/8; idx++ {
+		// TODO: Debug. Remove.
+		if idx >= len(runes) {
+			log.Printf("progressBar: value: %f, width: %d", pb.value, pb.width)
+			return
+		}
+
 		runes[idx] = '█'
 	}
 	if progress%8 > 0 {

@@ -276,13 +276,21 @@ func (c *controller) resolveSelected() {
 }
 
 func (c *controller) resolveAll() {
-	c.resolveFolder(c.archive.currentFolder())
+	c.resolveFolder(c.archive.currentPath)
 }
 
-func (c *controller) resolveFolder(folder *folder) {
-	for _, file := range folder.entries {
+func (c *controller) resolveFile(file *m.File) {
+	if file.Kind == m.FileRegular {
+		c.resolveRegularFile(file)
+	} else {
+		c.resolveFolder(file.Path)
+	}
+}
+
+func (c *controller) resolveFolder(path m.Path) {
+	for _, file := range c.archive.folders[path].entries {
 		if file.Kind == m.FileFolder {
-			c.resolveFolder(c.archive.folders[m.Path(file.Name.String())])
+			c.resolveFolder(m.Path(file.Name.String()))
 		} else if file.State == m.Divergent && file.Counts[c.archive.idx] == 1 {
 			c.resolveFile(file)
 		}
@@ -335,8 +343,12 @@ func (c *controller) updateFolderStates() {
 	}
 }
 
-func (c *controller) resolveFile(file *m.File) {
+func (c *controller) resolveRegularFile(file *m.File) {
+	log.Printf("resolveFile: file: %s", file)
 	for _, archive := range c.archives {
+		log.Printf("resolveFile: archive:1: %q", archive.root)
+		archive.clearPath(file.Path)
+
 		var sameName *m.File
 		folder := archive.folders[file.Path]
 		if folder == nil {
@@ -351,32 +363,31 @@ func (c *controller) resolveFile(file *m.File) {
 		if sameName == nil {
 			continue
 		}
-		// TODO What if a sameName file is a folder?
+
 		if sameName.Hash != file.Hash {
+			log.Printf("resolveFile: found deverdent: id: %q, hash: %q", sameName.Id, sameName.Hash)
 			newBase := folder.uniqueName(file.Base)
 			newName := m.Name{Path: file.Path, Base: newBase}
-			c.shared.fs.Send(m.RenameFile{
-				Hash: sameName.Hash,
-				From: sameName.Id,
-				To:   newName,
-			})
-			archive.renameEntry(sameName.Name, newName)
+			archive.renameEntry(sameName, newName)
 			sameName.State = m.Pending
 			file.State = m.Pending
+
+			log.Printf("resolveFile: handled deverdent: id: %q, hash: %q", sameName.Id, sameName.Hash)
 		}
 	}
 
 	copyRoots := []m.Id{}
 	for _, archive := range c.archives {
+		log.Printf("resolveFile: archive:2: %q", archive.root)
 		sameHash := []*m.File{}
-		for _, folder := range archive.folders {
-			for _, entry := range folder.entries {
-				if entry.Hash == file.Hash {
-					sameHash = append(sameHash, entry)
-				}
+		for _, entry := range c.byHash[file.Hash] {
+			if entry.Root == archive.root {
+				sameHash = append(sameHash, entry)
+				log.Printf("resolveFile: archive:2: sameHash: %q", entry.Id)
 			}
 		}
 		if len(sameHash) == 0 {
+			log.Printf("resolveFile: archive:2: no entries")
 			copyRoots = append(copyRoots, m.Id{Root: archive.root, Name: file.Name})
 			newFile := &m.File{
 				Meta: m.Meta{
@@ -389,7 +400,8 @@ func (c *controller) resolveFile(file *m.File) {
 				State: m.Pending,
 			}
 			file.State = m.Pending
-			archive.addEntry(newFile)
+			log.Printf("resolveFile: archive:2: add entry: %q", newFile.Id)
+			archive.addFile(newFile)
 			c.byHash[newFile.Hash] = append(c.byHash[newFile.Hash], newFile)
 			continue
 		}
@@ -402,13 +414,9 @@ func (c *controller) resolveFile(file *m.File) {
 		if keep == nil {
 			keep = sameHash[0]
 		}
+		log.Printf("resolveFile: archive:2: keep: %q", keep.Id)
 		if keep.Name != file.Name {
-			c.shared.fs.Send(m.RenameFile{
-				Hash: keep.Hash,
-				From: keep.Id,
-				To:   file.Name,
-			})
-			archive.renameEntry(keep.Name, file.Name)
+			archive.renameEntry(keep, file.Name)
 			keep.State = m.Pending
 			file.State = m.Pending
 		}
@@ -417,6 +425,7 @@ func (c *controller) resolveFile(file *m.File) {
 			if other == keep {
 				continue
 			}
+			log.Printf("resolveFile: archive:2: other: %q", other.Id)
 
 			c.shared.fs.Send(m.DeleteFile{
 				Hash: keep.Hash,
