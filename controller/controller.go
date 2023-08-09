@@ -394,8 +394,8 @@ func (c *controller) resolveRegularFile(file *m.File) {
 					Id:      m.Id{Root: archive.root, Name: file.Name},
 					Size:    file.Size,
 					ModTime: file.ModTime,
-					Hash:    file.Hash,
 				},
+				Hash:  file.Hash,
 				Kind:  m.FileRegular,
 				State: m.Pending,
 			}

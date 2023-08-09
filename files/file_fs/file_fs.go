@@ -30,12 +30,11 @@ func NewFs(events *stream.Stream[m.Event], lc *lifecycle.Lifecycle) m.FS {
 
 func (fs *fileFs) Scan(root m.Root) {
 	s := &scanner{
-		root:    root,
-		events:  fs.events,
-		lc:      fs.lc,
-		byInode: map[uint64]*m.Meta{},
-		stored:  map[uint64]*m.Meta{},
-		sent:    map[m.Id]struct{}{},
+		root:   root,
+		events: fs.events,
+		lc:     fs.lc,
+		metas:  map[uint64]*m.Meta{},
+		hashes: map[uint64]m.Hash{},
 	}
 	go s.scanArchive()
 }

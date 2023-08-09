@@ -23,13 +23,12 @@ import (
 const hashFileName = ".meta.csv"
 
 type scanner struct {
-	root    m.Root
-	events  *stream.Stream[m.Event]
-	lc      *lifecycle.Lifecycle
-	byInode map[uint64]*m.Meta
-	files   []*m.Meta
-	stored  map[uint64]*m.Meta
-	sent    map[m.Id]struct{}
+	root   m.Root
+	events *stream.Stream[m.Event]
+	lc     *lifecycle.Lifecycle
+	metas  map[uint64]*m.Meta
+	hashes map[uint64]m.Hash
+	iNodes []uint64
 }
 
 func (s *scanner) scanArchive() {
@@ -69,8 +68,8 @@ func (s *scanner) scanArchive() {
 			Size:    uint64(meta.Size()),
 		}
 
-		s.byInode[sys.Ino] = file
-		s.files = append(s.files, file)
+		s.metas[sys.Ino] = file
+		s.iNodes = append(s.iNodes, sys.Ino)
 
 		s.events.Push(m.FileScanned{
 			Meta: file,
@@ -88,26 +87,25 @@ func (s *scanner) scanArchive() {
 		s.storeMeta()
 	}()
 
-	for ino, file := range s.byInode {
-		if stored, ok := s.stored[ino]; ok && stored.ModTime == file.ModTime && stored.Size == file.Size {
-			file.Hash = stored.Hash
-			s.events.Push(m.FileHashed{Id: file.Id, Hash: file.Hash})
-			s.sent[file.Id] = struct{}{}
-		}
+	for ino, hash := range s.hashes {
+		file := s.metas[ino]
+		s.events.Push(m.FileHashed{Id: file.Id, Hash: hash})
 	}
 
-	for _, file := range s.files {
-		if _, ok := s.sent[file.Id]; ok {
+	for _, ino := range s.iNodes {
+		if _, ok := s.hashes[ino]; ok {
 			continue
 		}
+		file := s.metas[ino]
 
-		file.Hash = s.hashFile(file.Id)
+		hash := s.hashFile(file.Id)
+		s.hashes[ino] = hash
 
 		if s.lc.ShoudStop() {
 			return
 		}
 
-		s.events.Push(m.FileHashed{Id: file.Id, Hash: file.Hash})
+		s.events.Push(m.FileHashed{Id: file.Id, Hash: hash})
 	}
 }
 
@@ -185,30 +183,26 @@ func (s *scanner) readMeta() {
 				continue
 			}
 
-			s.stored[iNode] = &m.Meta{
-				ModTime: modTime,
-				Size:    uint64(size),
-				Hash:    m.Hash(hash),
-			}
-			info, ok := s.byInode[iNode]
+			info, ok := s.metas[iNode]
 			if hash != "" && ok && info.ModTime == modTime && info.Size == size {
-				info.Hash = m.Hash(hash)
+				s.hashes[iNode] = m.Hash(hash)
 			}
 		}
 	}
 }
 
 func (s *scanner) storeMeta() error {
-	result := make([][]string, 1, len(s.byInode)+1)
+	result := make([][]string, 1, len(s.metas)+1)
 	result[0] = []string{"INode", "Name", "Size", "ModTime", "Hash"}
 
-	for iNode, file := range s.byInode {
+	for iNode, hash := range s.hashes {
+		file := s.metas[iNode]
 		result = append(result, []string{
 			fmt.Sprint(iNode),
 			norm.NFC.String(file.Name.String()),
 			fmt.Sprint(file.Size),
 			file.ModTime.UTC().Format(time.RFC3339Nano),
-			file.Hash.String(),
+			hash.String(),
 		})
 	}
 
