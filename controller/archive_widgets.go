@@ -55,7 +55,7 @@ func (a *archive) folderWidget() w.Widget {
 						break
 					}
 					rows = append(rows, w.Styled(a.styleFile(file, selected == file),
-						w.MouseTarget(m.SelectFile(file.Id), w.Row(rowConstraint,
+						w.MouseTarget(m.SelectFile(file.Meta().Id), w.Row(rowConstraint,
 							a.fileRow(file)...,
 						)),
 					))
@@ -67,29 +67,34 @@ func (a *archive) folderWidget() w.Widget {
 	)
 }
 
-func (a *archive) fileRow(file *m.File) []w.Widget {
+func (a *archive) fileRow(file m.Entry) []w.Widget {
 	result := []w.Widget{w.Text(" "), state(file)}
 
-	if file.Kind == m.FileRegular {
+	switch file.(type) {
+	case *m.File:
 		result = append(result, w.Text("   "))
-	} else {
+	case *m.Folder:
 		result = append(result, w.Text(" ▶ "))
 	}
-	result = append(result, w.Text(file.Base.String()).Width(20).Flex(1))
+
+	result = append(result, w.Text(file.Meta().Id.Base.String()).Width(20).Flex(1))
 	result = append(result, w.Text("  "))
-	result = append(result, w.Text(file.ModTime.Format(time.DateTime)))
+	result = append(result, w.Text(file.Meta().ModTime.Format(time.DateTime)))
 	result = append(result, w.Text("  "))
-	result = append(result, w.Text(formatSize(file.Size)).Width(18))
+	result = append(result, w.Text(formatSize(file.Meta().Size)).Width(18))
 	return result
 }
 
-func state(file *m.File) w.Widget {
-	totalHashed := file.TotalHashed + file.Hashed
-	if totalHashed > 0 && file.TotalHashed+file.Hashed < file.Size {
-		value := float64(file.TotalHashed+file.Hashed) / float64(file.Size)
+func state(entry m.Entry) w.Widget {
+	hashed := entry.Meta().Size
+	if folder, ok := entry.(*m.Folder); ok {
+		hashed += folder.TotalHashed
+	}
+	if hashed > 0 && hashed < entry.Meta().Size {
+		value := float64(hashed) / float64(entry.Meta().Size)
 		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 	}
-	switch file.State {
+	switch entry.State() {
 	case m.Pending:
 		return w.Text("Pending").Width(10)
 	case m.Divergent:
@@ -99,10 +104,11 @@ func state(file *m.File) w.Widget {
 	}
 
 	buf := &strings.Builder{}
-	for _, count := range file.Counts {
-		fmt.Fprintf(buf, "%c", countRune(count))
+	if file, ok := entry.(*m.File); ok {
+		for _, count := range file.Counts {
+			fmt.Fprintf(buf, "%c", countRune(count))
+		}
 	}
-
 	return w.Text(buf.String()).Width(10)
 }
 
@@ -200,9 +206,9 @@ func formatSize(size uint64) string {
 	return b.String()
 }
 
-func (a *archive) styleFile(file *m.File, selected bool) w.Style {
+func (a *archive) styleFile(file m.Entry, selected bool) w.Style {
 	bg, flags := byte(17), w.Flags(0)
-	if file.Kind == m.FileFolder {
+	if _, ok := file.(*m.Folder); ok {
 		bg = byte(18)
 	}
 	result := w.Style{FG: a.statusColor(file), BG: bg, Flags: flags}
@@ -214,8 +220,8 @@ func (a *archive) styleFile(file *m.File, selected bool) w.Style {
 
 var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
-func (a *archive) statusColor(file *m.File) byte {
-	switch file.State {
+func (a *archive) statusColor(file m.Entry) byte {
+	switch file.State() {
 	case m.Scanned:
 		return 248
 	case m.Hashing:

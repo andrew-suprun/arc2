@@ -53,22 +53,6 @@ func (a *archive) printTo(buf *strings.Builder) {
 	}
 }
 
-func (a *archive) removeEntry(name m.Name) *m.File {
-	var removed *m.File
-	folder := a.getFolder(name.Path)
-	for idx, entry := range folder.entries {
-		if entry.Base == name.Base {
-			removed = entry
-			if idx < len(folder.entries)-1 {
-				folder.entries[idx] = folder.entries[len(folder.entries)-1]
-			}
-			folder.entries = folder.entries[:len(folder.entries)-1]
-		}
-	}
-	folder.needsSorting = true
-	return removed
-}
-
 func (a *archive) clearPath(path m.Path) {
 	log.Printf("clearPath: >>> root: %q, path: %q", a.root, path)
 	defer log.Printf("clearPath: <<< root: %q, path: %q", a.root, path)
@@ -78,16 +62,17 @@ func (a *archive) clearPath(path m.Path) {
 		return
 	}
 	folder := a.getFolder(parentName.Path)
-	for _, file := range folder.entries {
-		if file.Base == parentName.Base {
-			if file.Kind == m.FileFolder {
+	for _, entry := range folder.entries {
+		if entry.Meta().Base == parentName.Base {
+			file, ok := entry.(*m.File)
+			if !ok {
 				return
 			}
 
-			newBase := folder.uniqueName(file.Base)
-			newName := m.Name{Path: file.Path, Base: newBase}
+			newBase := folder.uniqueName(entry.Meta().Base)
+			newName := m.Name{Path: entry.Meta().Path, Base: newBase}
 			a.renameEntry(file, newName)
-			file.State = m.Pending
+			entry.SetState(m.Pending)
 		}
 	}
 	a.clearPath(parentName.Path)
@@ -102,19 +87,9 @@ func (a *archive) renameEntry(file *m.File, newName m.Name) {
 		To:   newName,
 	})
 
-	if file.Path == newName.Path {
-		folder := a.getFolder(file.Path)
-		for _, entry := range folder.entries {
-			if entry.Base == file.Base {
-				entry.Base = newName.Base
-				folder.needsSorting = true
-				return
-			}
-		}
-	}
-	removed := a.removeEntry(file.Name)
-	removed.Name = newName
-	a.addFile(removed)
+	a.getFolder(file.Path).deleteEntry(file.Base)
+	file.Name = newName
+	a.getFolder(file.Path).insertEntry(file)
 }
 
 func (a *archive) currentFolder() *folder {
@@ -124,20 +99,16 @@ func (a *archive) currentFolder() *folder {
 func (a *archive) getFolder(path m.Path) *folder {
 	pathFolder, ok := a.folders[path]
 	if !ok {
-		pathFolder = &folder{
-			path:          path,
-			sortAscending: []bool{true, false, false},
-			needsSorting:  true,
-		}
+		pathFolder = newFolder(path)
 		a.folders[path] = pathFolder
 	}
 	return pathFolder
 }
 
-func (a *archive) parents(file *m.File, proc func(parent *m.File)) {
+func (a *archive) parents(file *m.File, proc func(parent *m.Folder)) {
 	name := file.ParentName()
 	for name.Base != "." {
-		proc(a.getFolder(name.Path).entry(name.Base))
+		proc(a.getFolder(name.Path).entry(name.Base).(*m.Folder))
 		name = name.Path.ParentName()
 	}
 }
@@ -146,11 +117,12 @@ func (a *archive) updateFolderStates(path m.Path) m.State {
 	state := m.Resolved
 	folder := a.getFolder(path)
 	for _, entry := range folder.entries {
-		if entry.Kind == m.FileFolder {
-			entry.State = a.updateFolderStates(m.Path(entry.Name.String()))
-			state = state.Merge(entry.State)
-		} else {
-			state = state.Merge(entry.State)
+		switch entry := entry.(type) {
+		case *m.Folder:
+			entry.SetState(a.updateFolderStates(m.Path(entry.Name.String())))
+			state = state.Merge(entry.State())
+		case *m.File:
+			state = state.Merge(entry.State())
 		}
 	}
 	return state

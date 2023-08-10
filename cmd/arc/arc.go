@@ -14,11 +14,24 @@ import (
 )
 
 func main() {
+	var err any
+	var stack []byte
+
 	log.SetFlags(0)
 	logFile, err := os.Create("log.log")
 	if err == nil {
 		log.SetOutput(logFile)
-		defer logFile.Close()
+		defer func() {
+			if err != nil {
+				log.Printf("ERROR: %v", err)
+				log.Println(string(stack))
+				logFile.Close()
+				log.SetOutput(os.Stderr)
+				log.Printf("ERROR: %v", err)
+			} else {
+				logFile.Close()
+			}
+		}()
 	}
 
 	var paths []m.Root
@@ -55,7 +68,7 @@ func main() {
 		fs = file_fs.NewFs(events, lc)
 	}
 
-	controller.Run(fs, renderer, events, paths)
+	err, stack = controller.Run(fs, renderer, events, paths)
 
 	renderer.Quit()
 	lc.Stop()

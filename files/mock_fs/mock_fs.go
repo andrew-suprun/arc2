@@ -95,7 +95,7 @@ func (s *scanner) scanArchive() {
 			ModTime: meta.ModTime,
 		}
 		s.eventStream.Push(m.FileScanned{
-			Meta: meta,
+			Meta: *meta,
 		})
 
 	}

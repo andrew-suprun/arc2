@@ -10,7 +10,7 @@ type Event interface {
 }
 
 type FileScanned struct {
-	*Meta
+	Meta
 }
 
 func (FileScanned) event() {}

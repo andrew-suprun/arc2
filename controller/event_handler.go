@@ -12,7 +12,7 @@ func (c *controller) handleEvent(event any) {
 	}
 	switch event := event.(type) {
 	case m.FileScanned:
-		file := &m.File{Meta: *event.Meta, State: m.Scanned}
+		file := m.NewFile(event.Meta, m.Scanned)
 		c.byId[event.Id] = file
 		c.archives[event.Root].fileScanned(file)
 

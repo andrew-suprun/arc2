@@ -16,30 +16,29 @@ func (a *archive) archiveScanned() {
 }
 
 func (a *archive) addFile(file *m.File) {
-	a.addEntry(file)
+	a.insertEntry(file)
 	name := file.ParentName()
 	for name.Base != "." {
 		parentFolder := a.getFolder(name.Path)
-		folderEntry := parentFolder.entry(name.Base)
-		if folderEntry != nil {
+		entry := parentFolder.entry(name.Base)
+
+		if folderEntry, ok := entry.(*m.Folder); ok {
 			folderEntry.Size += file.Size
 			if folderEntry.ModTime.Before(file.ModTime) {
 				folderEntry.ModTime = file.ModTime
 			}
 		} else {
-			folderEntry := &m.File{
-				Meta: m.Meta{
-					Id: m.Id{
-						Root: file.Root,
-						Name: name,
-					},
-					Size:    file.Size,
-					ModTime: file.ModTime,
+			folderEntry := m.NewFolder(m.Meta{
+				Id: m.Id{
+					Root: file.Root,
+					Name: name,
 				},
-				Kind:  m.FileFolder,
-				State: m.Scanned,
-			}
-			a.addEntry(folderEntry)
+				Size:    file.Size,
+				ModTime: file.ModTime,
+			},
+				m.Scanned,
+			)
+			a.insertEntry(folderEntry)
 
 		}
 
@@ -47,21 +46,20 @@ func (a *archive) addFile(file *m.File) {
 	}
 }
 
-func (a *archive) addEntry(entry *m.File) {
-	folder := a.getFolder(entry.Path)
-	folder.entries = append(folder.entries, entry)
-	folder.needsSorting = true
+func (a *archive) insertEntry(entry m.Entry) {
+	folder := a.getFolder(entry.Meta().Path)
+	folder.insertEntry(entry)
 }
 
 func (a *archive) fileHashedEvent(event m.FileHashed) {
 	folder := a.getFolder(event.Path)
-	file := folder.entry(event.Base)
+	file := folder.entry(event.Base).(*m.File)
 	file.Hash = event.Hash
-	file.State = m.Resolved
+	file.SetState(m.Resolved)
 
 	a.updateFolderStates("")
 
-	a.parents(file, func(parent *m.File) {
+	a.parents(file, func(parent *m.Folder) {
 		parent.Hashed = 0
 		parent.TotalHashed += file.Size
 	})
@@ -71,9 +69,10 @@ func (a *archive) fileHashedEvent(event m.FileHashed) {
 }
 
 func (a *archive) enter() {
-	file := a.currentFolder().selected()
-	if file != nil && file.Kind == m.FileFolder {
-		a.currentPath = m.Path(file.Name.String())
+	entry := a.currentFolder().selected()
+	if folder, ok := entry.(*m.Folder); ok {
+		a.currentPath = m.Path(folder.Name.String())
+
 	}
 }
 
@@ -99,7 +98,6 @@ func (a *archive) mouseTarget(cmd any) {
 	case m.SortColumn:
 		folder := a.currentFolder()
 		folder.selectSortColumn(cmd)
-		folder.needsSorting = true
 		folder.makeSelectedVisible(a.fileTreeLines)
 	}
 }

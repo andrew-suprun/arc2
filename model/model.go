@@ -68,38 +68,6 @@ func (m *Meta) String() string {
 		m.Root, m.Path, m.Base, m.Size, m.ModTime.Format(time.DateTime))
 }
 
-type File struct {
-	Meta
-	Hash
-	Kind
-	State
-	Hashed      uint64
-	TotalHashed uint64
-	Counts      []int
-}
-
-func (f *File) String() string {
-	return fmt.Sprintf("File{FileId: %q, Kind: %s, Size: %d, Hash: %q, State: %s, Hashed: %d, TotalHashed; %d}",
-		f.Id, f.Kind, f.Size, f.Hash, f.State, f.Hashed, f.TotalHashed)
-}
-
-type Kind int
-
-const (
-	FileRegular Kind = iota
-	FileFolder
-)
-
-func (k Kind) String() string {
-	switch k {
-	case FileFolder:
-		return "FileFolder"
-	case FileRegular:
-		return "FileRegular"
-	}
-	return "UNKNOWN FILE KIND"
-}
-
 type State int
 
 const (

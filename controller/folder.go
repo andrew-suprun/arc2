@@ -3,20 +3,45 @@ package controller
 import (
 	m "arc/model"
 	"fmt"
+	"log"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 )
 
 type folder struct {
 	path               m.Path
-	entries            []*m.File
+	entries            []m.Entry
 	selectedIdx        int
 	offsetIdx          int
 	sortColumn         m.SortColumn
+	cmpFunc            func(m.Entry, m.Entry) int
 	sortAscending      []bool
 	lastMouseEventTime time.Time
-	needsSorting       bool
+}
+
+func newFolder(path m.Path) *folder {
+	return &folder{
+		path:          path,
+		sortAscending: []bool{true, false, false},
+		cmpFunc:       cmpByAscendingName,
+	}
+}
+
+func (f *folder) insertEntry(entry m.Entry) {
+	idx, _ := slices.BinarySearchFunc(f.entries, entry, f.cmpFunc)
+	f.entries = slices.Insert(f.entries, idx, entry)
+}
+
+func (f *folder) deleteEntry(base m.Base) m.Entry {
+	if idx := slices.IndexFunc(f.entries, func(entry m.Entry) bool { return entry.Meta().Base == base }); idx >= 0 {
+		result := f.entries[idx]
+		f.entries = slices.Delete(f.entries, idx, idx+1)
+		return result
+	}
+	log.Fatalf("Deleting non-existing entry: folder: %q, base: %q", f.path, base)
+	return nil
 }
 
 func (f *folder) printTo(buf *strings.Builder) {
@@ -29,7 +54,7 @@ func (f *folder) printTo(buf *strings.Builder) {
 	}
 }
 
-func (f *folder) selected() *m.File {
+func (f *folder) selected() m.Entry {
 	if len(f.entries) == 0 {
 		return nil
 	}
@@ -39,11 +64,10 @@ func (f *folder) selected() *m.File {
 	return f.entries[f.selectedIdx]
 }
 
-func (f *folder) entry(base m.Base) *m.File {
-	for _, entry := range f.entries {
-		if entry.Base == base {
-			return entry
-		}
+func (f *folder) entry(base m.Base) m.Entry {
+	idx := slices.IndexFunc(f.entries, func(entry m.Entry) bool { return entry.Meta().Base == base })
+	if idx >= 0 {
+		return f.entries[idx]
 	}
 	return nil
 }
@@ -79,24 +103,19 @@ func (f *folder) moveOffset(lines, fileTreeLines int) {
 }
 
 func (f *folder) open() {
-	exec.Command("open", f.selected().Id.String()).Start()
+	exec.Command("open", f.selected().Meta().Id.String()).Start()
 }
 
 func (f *folder) revealInFinder() {
-	exec.Command("open", "-R", f.selected().Id.String()).Start()
+	exec.Command("open", "-R", f.selected().Meta().Id.String()).Start()
 }
 
 func (f *folder) selectFile(cmd m.SelectFile) {
 	selected := f.selected()
-	if selected.Id == m.Id(cmd) && time.Since(f.lastMouseEventTime).Seconds() < 0.5 {
+	if selected.Meta().Id == m.Id(cmd) && time.Since(f.lastMouseEventTime).Seconds() < 0.5 {
 		f.open()
 	} else {
-		for idx := range f.entries {
-			if f.entries[idx].Base == cmd.Base {
-				f.selectedIdx = idx
-				break
-			}
-		}
+		f.selectedIdx = slices.IndexFunc(f.entries, func(e m.Entry) bool { return e.Meta().Base == cmd.Base })
 	}
 	f.lastMouseEventTime = time.Now()
 }
@@ -107,6 +126,26 @@ func (f *folder) selectSortColumn(cmd m.SortColumn) {
 	} else {
 		f.sortColumn = cmd
 	}
+	if f.sortAscending[f.sortColumn] {
+		switch f.sortColumn {
+		case m.SortByName:
+			f.cmpFunc = cmpByAscendingName
+		case m.SortByTime:
+			f.cmpFunc = cmpByAscendingTime
+		case m.SortBySize:
+			f.cmpFunc = cmpByAscendingSize
+		}
+	} else {
+		switch f.sortColumn {
+		case m.SortByName:
+			f.cmpFunc = cmpByDescendingName
+		case m.SortByTime:
+			f.cmpFunc = cmpByDescendingTime
+		case m.SortBySize:
+			f.cmpFunc = cmpByDescendingSize
+		}
+	}
+	f.sort()
 }
 
 func (f *folder) makeSelectedVisible(fileTreeLines int) {
@@ -137,7 +176,7 @@ outer:
 			newBase = m.Base(strings.Join(parts, "."))
 		}
 		for _, entry := range f.entries {
-			if entry.Base == newBase {
+			if entry.Meta().Base == newBase {
 				continue outer
 			}
 		}

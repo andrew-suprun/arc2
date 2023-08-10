@@ -2,106 +2,98 @@ package controller
 
 import (
 	m "arc/model"
-	"sort"
+	"slices"
 	"strings"
 )
 
+func cmpByName(one, two m.Entry) int {
+	m1 := one.Meta()
+	m2 := two.Meta()
+	oneName := strings.ToLower(m1.Base.String())
+	twoName := strings.ToLower(m2.Base.String())
+	if oneName < twoName {
+		return -1
+	} else if oneName > twoName {
+		return 1
+	}
+	return 0
+}
+
+func cmpBySize(one, two m.Entry) int {
+	m1 := one.Meta()
+	m2 := two.Meta()
+	if m1.Size < m2.Size {
+		return -1
+	} else if m1.Size > m2.Size {
+		return 1
+	}
+	return 0
+}
+
+func cmpByTime(one, two m.Entry) int {
+	m1 := one.Meta()
+	m2 := two.Meta()
+	if m1.ModTime.Before(m1.ModTime) {
+		return -1
+	} else if m2.ModTime.Before(m1.ModTime) {
+		return 1
+	}
+	return 0
+}
+
+func cmpByAscendingName(one, two m.Entry) int {
+	result := cmpByName(one, two)
+	if result != 0 {
+		return result
+	}
+
+	result = cmpBySize(one, two)
+	if result != 0 {
+		return result
+	}
+	return cmpByTime(one, two)
+}
+
+func cmpByDescendingName(one, two m.Entry) int {
+	return cmpByAscendingName(two, one)
+}
+
+func cmpByAscendingTime(one, two m.Entry) int {
+	result := cmpByTime(one, two)
+	if result != 0 {
+		return result
+	}
+
+	result = cmpByName(one, two)
+	if result != 0 {
+		return result
+	}
+
+	return cmpBySize(one, two)
+}
+
+func cmpByDescendingTime(one, two m.Entry) int {
+	return cmpByAscendingTime(two, one)
+}
+
+func cmpByAscendingSize(one, two m.Entry) int {
+	result := cmpBySize(one, two)
+	if result != 0 {
+		return result
+	}
+
+	result = cmpByName(one, two)
+	if result != 0 {
+		return result
+	}
+
+	return cmpByTime(one, two)
+}
+
+func cmpByDescendingSize(one, two m.Entry) int {
+	return cmpByAscendingSize(two, one)
+}
+
 func (f *folder) sort() {
-	if !f.needsSorting {
-		return
-	}
-	f.needsSorting = false
-	selected := f.selected()
-	files := sliceBy(f.entries)
-	var slice sort.Interface
-	switch f.sortColumn {
-	case m.SortByName:
-		slice = sliceByName{sliceBy: files}
-	case m.SortByTime:
-		slice = sliceByTime{sliceBy: files}
-	case m.SortBySize:
-		slice = sliceBySize{sliceBy: files}
-	}
-	if !f.sortAscending[f.sortColumn] {
-		slice = sort.Reverse(slice)
-	}
-	sort.Sort(slice)
-	for idx, entry := range f.entries {
-		if entry == selected {
-			f.selectedIdx = idx
-			break
-		}
-	}
-}
-
-type sliceBy []*m.File
-
-func (s sliceBy) Len() int {
-	return len(s)
-}
-
-func (s sliceBy) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-type sliceByName struct {
-	sliceBy
-}
-
-func (s sliceByName) Less(i, j int) bool {
-	iName := strings.ToLower(s.sliceBy[i].Base.String())
-	jName := strings.ToLower(s.sliceBy[j].Base.String())
-	if iName != jName {
-		return iName < jName
-	}
-
-	iSize := s.sliceBy[i].Size
-	jSize := s.sliceBy[j].Size
-	if iSize != jSize {
-		return iSize < jSize
-	}
-
-	return s.sliceBy[i].ModTime.Before(s.sliceBy[j].ModTime)
-}
-
-type sliceByTime struct {
-	sliceBy
-}
-
-func (s sliceByTime) Less(i, j int) bool {
-	iModTime := s.sliceBy[i].ModTime
-	jModTime := s.sliceBy[j].ModTime
-	if iModTime.Before(jModTime) {
-		return true
-	} else if iModTime.After(jModTime) {
-		return false
-	}
-
-	iName := strings.ToLower(s.sliceBy[i].Base.String())
-	jName := strings.ToLower(s.sliceBy[j].Base.String())
-	if iName != jName {
-		return iName < jName
-	}
-
-	return s.sliceBy[i].Size < s.sliceBy[j].Size
-}
-
-type sliceBySize struct {
-	sliceBy
-}
-
-func (s sliceBySize) Less(i, j int) bool {
-	iSize := s.sliceBy[i].Size
-	jSize := s.sliceBy[j].Size
-	if iSize != jSize {
-		return iSize < jSize
-	}
-
-	iName := strings.ToLower(s.sliceBy[i].Base.String())
-	jName := strings.ToLower(s.sliceBy[j].Base.String())
-	if iName != jName {
-		return iName < jName
-	}
-
-	return s.sliceBy[i].ModTime.Before(s.sliceBy[j].ModTime)
+	slices.SortFunc(f.entries, f.cmpFunc)
 }

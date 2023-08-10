@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 	"runtime/debug"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -43,15 +43,13 @@ type shared struct {
 	fs  m.FS
 }
 
-func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) {
+func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) (err any, stack []byte) {
 	defer func() {
-		err := recover()
-		if err != nil {
-			log.Printf("PANIC: %#v", err)
-			debug.PrintStack()
-		}
+		err = recover()
+		stack = debug.Stack()
 	}()
 	run(fs, renderer, events, roots)
+	return nil, nil
 }
 
 func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m.Root) {
@@ -73,7 +71,6 @@ func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 		}
 
 		c.frames++
-		c.archive.currentFolder().sort()
 		screen := w.NewScreen(c.screenSize)
 		c.archive.rootWidget().Render(screen, w.Position{X: 0, Y: 0}, c.screenSize)
 		renderer.Push(screen)
@@ -95,55 +92,41 @@ func newController(roots []m.Root) *controller {
 
 func (c *controller) tab() {
 	selected := c.archive.currentFolder().selected()
-
-	if selected == nil || selected.Kind != m.FileRegular {
+	file, ok := selected.(*m.File)
+	if !ok {
 		return
 	}
-	sameHash := []*m.File{}
-	for _, archive := range c.archives {
-		for _, folder := range archive.folders {
-			for _, entry := range folder.entries {
-				if entry.Hash == selected.Hash {
-					sameHash = append(sameHash, entry)
-				}
-			}
+
+	sameHash := c.byHash[file.Hash]
+
+	slices.SortFunc(sameHash, func(a, b *m.File) int {
+		aIdx := c.archives[a.Root].idx
+		bIdx := c.archives[b.Root].idx
+		if aIdx < bIdx {
+			return -1
+		} else if aIdx > bIdx {
+			return 1
 		}
-	}
-
-	sort.Slice(sameHash, func(i, j int) bool {
-		iFile := sameHash[i]
-		jFile := sameHash[j]
-		iRootIdx := c.rootIdx(iFile.Root)
-		jRootIdx := c.rootIdx(jFile.Root)
-
-		if iRootIdx != jRootIdx {
-			return iRootIdx < jRootIdx
+		if a.Path < b.Path {
+			return -1
+		} else if a.Path > b.Path {
+			return 1
 		}
-
-		iName := strings.ToLower(iFile.Id.String())
-		jName := strings.ToLower(jFile.Id.String())
-
-		return iName < jName
+		if a.Base < b.Base {
+			return -1
+		} else if a.Base > b.Base {
+			return 1
+		}
+		return 0
 	})
 
-	idx := 0
-	for idx = range sameHash {
-		if sameHash[idx] == selected {
-			break
-		}
-	}
-
-	newSelected := sameHash[(idx+1)%len(sameHash)]
-	c.archive = c.archives[newSelected.Root]
-	c.archive.currentPath = newSelected.Path
-
-	for idx, entry := range c.archive.currentFolder().entries {
-		if newSelected == entry {
-			c.archive.currentFolder().selectedIdx = idx
-			break
-		}
-	}
-	c.archive.currentFolder().makeSelectedVisible(c.archive.fileTreeLines)
+	idx := slices.Index(sameHash, file)
+	var newSelected m.Entry = sameHash[(idx+1)%len(sameHash)]
+	c.archive = c.archives[newSelected.Meta().Root]
+	c.archive.currentPath = newSelected.Meta().Path
+	folder := c.archive.currentFolder()
+	folder.selectedIdx = slices.Index(folder.entries, newSelected)
+	folder.makeSelectedVisible(c.archive.fileTreeLines)
 }
 
 func (c *controller) rootIdx(root m.Root) int {
@@ -175,18 +158,7 @@ func (c *controller) archiveHashed(event m.ArchiveHashed) {
 	}
 }
 
-func (c *controller) fileDeleted(event m.FileDeleted) {
-	for _, archive := range c.archives {
-		for _, folder := range archive.folders {
-			for _, entry := range folder.entries {
-				if entry.Hash == event.Hash {
-					entry.State = m.Resolved
-				}
-			}
-		}
-	}
-	c.archive.updateFolderStates("")
-}
+func (c *controller) fileDeleted(event m.FileDeleted) {}
 
 func (c *controller) fileRenamed(event m.FileRenamed) {
 	c.analyzeDiscrepancy(event.Hash)
@@ -203,8 +175,8 @@ func (c *controller) handleHashingProgress(event m.HashingProgress) {
 	archive := c.archives[event.Root]
 	archive.fileHashed = event.Hashed
 	folder := archive.folders[event.Path]
-	file := folder.entry(event.Base)
-	file.State = m.Hashing
+	file := folder.entry(event.Base).(*m.File)
+	file.SetState(m.Hashing)
 	file.Hashed = event.Hashed
 
 	c.archives[event.Root].progressInfo = &progressInfo{
@@ -214,8 +186,8 @@ func (c *controller) handleHashingProgress(event m.HashingProgress) {
 		timeRemaining: archive.timeRemaining,
 	}
 
-	archive.parents(file, func(file *m.File) {
-		file.State = m.Hashing
+	archive.parents(file, func(file *m.Folder) {
+		file.SetState(m.Hashing)
 		file.Hashed = event.Hashed
 	})
 
@@ -244,11 +216,7 @@ func (c *controller) analyzeDiscrepancies() {
 var noName = m.Name{}
 
 func (c *controller) analyzeDiscrepancy(hash m.Hash) {
-	log.Printf("analyzeDiscrepancies: hash: %q", hash)
 	files := c.byHash[hash]
-	for _, file := range files {
-		log.Printf("analyzeDiscrepancies:     file: %q", file.Id)
-	}
 	state := m.Resolved
 	if len(files) != len(c.roots) {
 		state = m.Divergent
@@ -279,38 +247,31 @@ func (c *controller) resolveAll() {
 	c.resolveFolder(c.archive.currentPath)
 }
 
-func (c *controller) resolveFile(file *m.File) {
-	if file.Kind == m.FileRegular {
-		c.resolveRegularFile(file)
-	} else {
-		c.resolveFolder(file.Path)
+func (c *controller) resolveFile(entry m.Entry) {
+	switch entry := entry.(type) {
+	case *m.File:
+		c.resolveRegularFile(entry)
+	case *m.Folder:
+		c.resolveFolder(entry.Path)
 	}
 }
 
 func (c *controller) resolveFolder(path m.Path) {
-	for _, file := range c.archive.folders[path].entries {
-		if file.Kind == m.FileFolder {
-			c.resolveFolder(m.Path(file.Name.String()))
-		} else if file.State == m.Divergent && file.Counts[c.archive.idx] == 1 {
-			c.resolveFile(file)
+	for _, entry := range c.archive.folders[path].entries {
+		switch entry := entry.(type) {
+		case *m.File:
+			if entry.State() == m.Divergent && entry.Counts[c.archive.idx] == 1 {
+				c.resolveFile(entry)
+			}
+		case *m.Folder:
+			c.resolveFolder(m.Path(entry.Name.String()))
 		}
 	}
 }
 
 func (c *controller) setStates(files []*m.File, state m.State) {
 	for _, file := range files {
-		c.setState(file.Id, state)
-	}
-}
-
-func (c *controller) setState(id m.Id, state m.State) {
-	log.Printf("setState: id: %q, state: %s", id, state)
-	folder := c.archives[id.Root].folders[id.Path]
-	for _, entry := range folder.entries {
-		if entry.Base == id.Base {
-			entry.State = state
-			break
-		}
+		file.SetState(state)
 	}
 }
 
@@ -344,111 +305,112 @@ func (c *controller) updateFolderStates() {
 }
 
 func (c *controller) resolveRegularFile(file *m.File) {
-	log.Printf("resolveFile: file: %s", file)
-	for _, archive := range c.archives {
-		log.Printf("resolveFile: archive:1: %q", archive.root)
-		archive.clearPath(file.Path)
+	// log.Printf("resolveFile: file: %s", file)
+	// for _, archive := range c.archives {
+	// 	log.Printf("resolveFile: archive:1: %q", archive.root)
+	// 	archive.clearPath(file.Path)
 
-		var sameName *m.File
-		folder := archive.folders[file.Path]
-		if folder == nil {
-			continue
-		}
-		for _, entry := range folder.entries {
-			if entry.Name == file.Name {
-				sameName = entry
-				break
-			}
-		}
-		if sameName == nil {
-			continue
-		}
+	// 	var sameName m.Entry
+	// 	folder := archive.folders[file.Path]
+	// 	if folder == nil {
+	// 		continue
+	// 	}
 
-		if sameName.Hash != file.Hash {
-			log.Printf("resolveFile: found deverdent: id: %q, hash: %q", sameName.Id, sameName.Hash)
-			newBase := folder.uniqueName(file.Base)
-			newName := m.Name{Path: file.Path, Base: newBase}
-			archive.renameEntry(sameName, newName)
-			sameName.State = m.Pending
-			file.State = m.Pending
+	// 	for _, entry := range folder.entries {
+	// 		if entry.Name == file.Name {
+	// 			sameName = entry
+	// 			break
+	// 		}
+	// 	}
+	// 	if sameName == nil {
+	// 		continue
+	// 	}
 
-			log.Printf("resolveFile: handled deverdent: id: %q, hash: %q", sameName.Id, sameName.Hash)
-		}
-	}
+	// 	if sameName.Hash != file.Hash {
+	// 		log.Printf("resolveFile: found deverdent: id: %q, hash: %q", sameName.Id, sameName.Hash)
+	// 		newBase := folder.uniqueName(file.Base)
+	// 		newName := m.Name{Path: file.Path, Base: newBase}
+	// 		archive.renameEntry(sameName, newName)
+	// 		sameName.State = m.Pending
+	// 		file.State = m.Pending
 
-	copyRoots := []m.Id{}
-	for _, archive := range c.archives {
-		log.Printf("resolveFile: archive:2: %q", archive.root)
-		sameHash := []*m.File{}
-		for _, entry := range c.byHash[file.Hash] {
-			if entry.Root == archive.root {
-				sameHash = append(sameHash, entry)
-				log.Printf("resolveFile: archive:2: sameHash: %q", entry.Id)
-			}
-		}
-		if len(sameHash) == 0 {
-			log.Printf("resolveFile: archive:2: no entries")
-			copyRoots = append(copyRoots, m.Id{Root: archive.root, Name: file.Name})
-			newFile := &m.File{
-				Meta: m.Meta{
-					Id:      m.Id{Root: archive.root, Name: file.Name},
-					Size:    file.Size,
-					ModTime: file.ModTime,
-				},
-				Hash:  file.Hash,
-				Kind:  m.FileRegular,
-				State: m.Pending,
-			}
-			file.State = m.Pending
-			log.Printf("resolveFile: archive:2: add entry: %q", newFile.Id)
-			archive.addFile(newFile)
-			c.byHash[newFile.Hash] = append(c.byHash[newFile.Hash], newFile)
-			continue
-		}
-		var keep *m.File
-		for _, entry := range sameHash {
-			if entry.Name == file.Name {
-				keep = entry
-			}
-		}
-		if keep == nil {
-			keep = sameHash[0]
-		}
-		log.Printf("resolveFile: archive:2: keep: %q", keep.Id)
-		if keep.Name != file.Name {
-			archive.renameEntry(keep, file.Name)
-			keep.State = m.Pending
-			file.State = m.Pending
-		}
+	// 		log.Printf("resolveFile: handled deverdent: id: %q, hash: %q", sameName.Id, sameName.Hash)
+	// 	}
+	// }
 
-		for _, other := range sameHash {
-			if other == keep {
-				continue
-			}
-			log.Printf("resolveFile: archive:2: other: %q", other.Id)
+	// copyRoots := []m.Id{}
+	// for _, archive := range c.archives {
+	// 	log.Printf("resolveFile: archive:2: %q", archive.root)
+	// 	sameHash := []*m.File{}
+	// 	for _, entry := range c.byHash[file.Hash] {
+	// 		if entry.Root == archive.root {
+	// 			sameHash = append(sameHash, entry)
+	// 			log.Printf("resolveFile: archive:2: sameHash: %q", entry.Id)
+	// 		}
+	// 	}
+	// 	if len(sameHash) == 0 {
+	// 		log.Printf("resolveFile: archive:2: no entries")
+	// 		copyRoots = append(copyRoots, m.Id{Root: archive.root, Name: file.Name})
+	// 		newFile := &m.Entry{
+	// 			Meta: m.Meta{
+	// 				Id:      m.Id{Root: archive.root, Name: file.Name},
+	// 				Size:    file.Size,
+	// 				ModTime: file.ModTime,
+	// 			},
+	// 			Hash:  file.Hash,
+	// 			Kind:  m.FileRegular,
+	// 			State: m.Pending,
+	// 		}
+	// 		file.State = m.Pending
+	// 		log.Printf("resolveFile: archive:2: add entry: %q", newFile.Id)
+	// 		archive.addFile(newFile)
+	// 		c.byHash[newFile.Hash] = append(c.byHash[newFile.Hash], newFile)
+	// 		continue
+	// 	}
+	// 	var keep m.Entry
+	// 	for _, entry := range sameHash {
+	// 		if entry.Name == file.Name {
+	// 			keep = entry
+	// 		}
+	// 	}
+	// 	if keep == nil {
+	// 		keep = sameHash[0]
+	// 	}
+	// 	log.Printf("resolveFile: archive:2: keep: %q", keep.Id)
+	// 	if keep.Name != file.Name {
+	// 		archive.renameEntry(keep, file.Name)
+	// 		keep.State = m.Pending
+	// 		file.State = m.Pending
+	// 	}
 
-			c.shared.fs.Send(m.DeleteFile{
-				Hash: keep.Hash,
-				Id:   other.Id,
-			})
-			file.State = m.Pending
-			archive.removeEntry(other.Name)
-			files := c.byHash[keep.Hash]
-			for i, file := range files {
-				if file.Id == other.Id {
-					files[i] = files[len(files)-1]
-					c.byHash[keep.Hash] = files[:len(files)-1]
-					break
-				}
-			}
-		}
-	}
-	if len(copyRoots) > 0 {
-		c.shared.fs.Send(m.CopyFile{
-			Hash: file.Hash,
-			From: file.Id,
-			To:   copyRoots,
-		})
-		file.State = m.Pending
-	}
+	// 	for _, other := range sameHash {
+	// 		if other == keep {
+	// 			continue
+	// 		}
+	// 		log.Printf("resolveFile: archive:2: other: %q", other.Id)
+
+	// 		c.shared.fs.Send(m.DeleteFile{
+	// 			Hash: keep.Hash,
+	// 			Id:   other.Id,
+	// 		})
+	// 		file.State = m.Pending
+	// 		archive.folders[other.Path].deleteEntry(other.Base)
+	// 		files := c.byHash[keep.Hash]
+	// 		for i, file := range files {
+	// 			if file.Id == other.Id {
+	// 				files[i] = files[len(files)-1]
+	// 				c.byHash[keep.Hash] = files[:len(files)-1]
+	// 				break
+	// 			}
+	// 		}
+	// 	}
+	// }
+	// if len(copyRoots) > 0 {
+	// 	c.shared.fs.Send(m.CopyFile{
+	// 		Hash: file.Hash,
+	// 		From: file.Id,
+	// 		To:   copyRoots,
+	// 	})
+	// 	file.State = m.Pending
+	// }
 }

@@ -72,7 +72,7 @@ func (s *scanner) scanArchive() {
 		s.iNodes = append(s.iNodes, sys.Ino)
 
 		s.events.Push(m.FileScanned{
-			Meta: file,
+			Meta: *file,
 		})
 
 		return nil
