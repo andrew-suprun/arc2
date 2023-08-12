@@ -2,37 +2,22 @@ package controller
 
 import (
 	m "arc/model"
+	"cmp"
 	"slices"
 	"strings"
 )
 
-func cmpByName(one, two m.Entry) int {
-	m1 := one.Meta()
-	m2 := two.Meta()
-	oneName := strings.ToLower(m1.Base.String())
-	twoName := strings.ToLower(m2.Base.String())
-	if oneName < twoName {
-		return -1
-	} else if oneName > twoName {
-		return 1
-	}
-	return 0
+func cmpByName(a, b m.Entry) int {
+	return cmp.Compare(strings.ToLower(a.Meta().Base.String()), strings.ToLower(b.Meta().Base.String()))
 }
 
-func cmpBySize(one, two m.Entry) int {
-	m1 := one.Meta()
-	m2 := two.Meta()
-	if m1.Size < m2.Size {
-		return -1
-	} else if m1.Size > m2.Size {
-		return 1
-	}
-	return 0
+func cmpBySize(a, b m.Entry) int {
+	return cmp.Compare(a.Meta().Size, b.Meta().Size)
 }
 
-func cmpByTime(one, two m.Entry) int {
-	m1 := one.Meta()
-	m2 := two.Meta()
+func cmpByTime(a, b m.Entry) int {
+	m1 := a.Meta()
+	m2 := b.Meta()
 	if m1.ModTime.Before(m1.ModTime) {
 		return -1
 	} else if m2.ModTime.Before(m1.ModTime) {
@@ -41,57 +26,57 @@ func cmpByTime(one, two m.Entry) int {
 	return 0
 }
 
-func cmpByAscendingName(one, two m.Entry) int {
-	result := cmpByName(one, two)
+func cmpByAscendingName(a, b m.Entry) int {
+	result := cmpByName(a, b)
 	if result != 0 {
 		return result
 	}
 
-	result = cmpBySize(one, two)
+	result = cmpBySize(a, b)
 	if result != 0 {
 		return result
 	}
-	return cmpByTime(one, two)
+	return cmpByTime(a, b)
 }
 
-func cmpByDescendingName(one, two m.Entry) int {
-	return cmpByAscendingName(two, one)
+func cmpByDescendingName(a, b m.Entry) int {
+	return cmpByAscendingName(b, a)
 }
 
-func cmpByAscendingTime(one, two m.Entry) int {
-	result := cmpByTime(one, two)
+func cmpByAscendingTime(a, b m.Entry) int {
+	result := cmpByTime(a, b)
 	if result != 0 {
 		return result
 	}
 
-	result = cmpByName(one, two)
+	result = cmpByName(a, b)
 	if result != 0 {
 		return result
 	}
 
-	return cmpBySize(one, two)
+	return cmpBySize(a, b)
 }
 
-func cmpByDescendingTime(one, two m.Entry) int {
-	return cmpByAscendingTime(two, one)
+func cmpByDescendingTime(a, b m.Entry) int {
+	return cmpByAscendingTime(b, a)
 }
 
-func cmpByAscendingSize(one, two m.Entry) int {
-	result := cmpBySize(one, two)
+func cmpByAscendingSize(a, b m.Entry) int {
+	result := cmpBySize(a, b)
 	if result != 0 {
 		return result
 	}
 
-	result = cmpByName(one, two)
+	result = cmpByName(a, b)
 	if result != 0 {
 		return result
 	}
 
-	return cmpByTime(one, two)
+	return cmpByTime(a, b)
 }
 
-func cmpByDescendingSize(one, two m.Entry) int {
-	return cmpByAscendingSize(two, one)
+func cmpByDescendingSize(a, b m.Entry) int {
+	return cmpByAscendingSize(b, a)
 }
 
 func (f *folder) sort() {

@@ -33,7 +33,7 @@ type controller struct {
 	copySpeed       float64
 	timeRemaining   time.Duration
 
-	errors []any
+	errors []m.Error
 
 	quit bool
 }
@@ -305,6 +305,9 @@ func (c *controller) updateFolderStates() {
 }
 
 func (c *controller) resolveRegularFile(file *m.File) {
+	// c.cleanName(file)
+	// c.cleanPath(file)
+
 	// log.Printf("resolveFile: file: %s", file)
 	// for _, archive := range c.archives {
 	// 	log.Printf("resolveFile: archive:1: %q", archive.root)
