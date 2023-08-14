@@ -200,7 +200,7 @@ var metas = map[m.Root][]*fileMeta{}
 var metaMap = map[m.Root]map[string]m.Hash{
 	"origin": {
 		"a/b/c/d": "abcd",
-		// "0000":            "0000",
+		"b/0000":  "0000",
 		// "6666":            "6666",
 		// "7777":            "7777",
 		// "a/b/e/f.txt":     "gggg",
@@ -218,7 +218,8 @@ var metaMap = map[m.Root]map[string]m.Hash{
 		// "xyz/bla":         "xyz/bla",
 	},
 	"copy 1": {
-		"a/b": "abcd",
+		"a/b":    "abcd",
+		"b/0000": "0000",
 		// "xxx.txt":     "xxxx",
 		// "a/b/c/d.txt": "llll",
 		// "a/b/e/f.txt": "hhhh",
@@ -242,6 +243,7 @@ var metaMap = map[m.Root]map[string]m.Hash{
 		// "xyz/bla":     "xyz/bla",
 	},
 	"copy 2": {
+		"b/0000": "0000",
 		// "xxx.txt":         "xxxx",
 		// "a/b/e/x.txt":     "gggg",
 		// "a/b/e/g.txt":     "tttt",

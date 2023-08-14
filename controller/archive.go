@@ -16,18 +16,26 @@ type archive struct {
 
 	*shared
 
-	totalSize      uint64
-	totalHashed    uint64
-	fileHashed     uint64
-	prevHashed     uint64
-	speed          float64
-	timeRemaining  time.Duration
-	progressInfo   *progressInfo
-	pendingFiles   int
-	duplicateFiles int
-	absentFiles    int
-	fileTreeLines  int
+	state           archiveState
+	totalSize       uint64
+	totalHashedSize uint64
+	fileHashedSize  uint64
+	prevHashedSize  uint64
+	speed           float64
+	timeRemaining   time.Duration
+	progressInfo    *progressInfo
+	fileTreeLines   int
+	scanned         bool
 }
+
+type archiveState int
+
+const (
+	scanning archiveState = iota
+	hashing
+	ready
+	copying
+)
 
 type progressInfo struct {
 	tab           string
@@ -53,30 +61,31 @@ func (a *archive) printTo(buf *strings.Builder) {
 	}
 }
 
-func (a *archive) clearPath(path m.Path) {
-	log.Printf("clearPath: >>> root: %q, path: %q", a.root, path)
-	defer log.Printf("clearPath: <<< root: %q, path: %q", a.root, path)
+// TODO: ??? Need it?
+// func (a *archive) clearPath(path m.Path) {
+// log.Printf("clearPath: >>> root: %q, path: %q", a.root, path)
+// defer log.Printf("clearPath: <<< root: %q, path: %q", a.root, path)
 
-	parentName := path.ParentName()
-	if parentName.Base == "." {
-		return
-	}
-	folder := a.getFolder(parentName.Path)
-	for _, entry := range folder.entries {
-		if entry.Meta().Base == parentName.Base {
-			file, ok := entry.(*m.File)
-			if !ok {
-				return
-			}
+// parentName := path.ParentName()
+// if parentName.Base == "." {
+// 	return
+// }
+// folder := a.getFolder(parentName.Path)
+// for _, entry := range folder.entries {
+// 	if entry.Meta().Base == parentName.Base {
+// 		file, ok := entry.(*m.File)
+// 		if !ok {
+// 			return
+// 		}
 
-			newBase := folder.uniqueName(entry.Meta().Base)
-			newName := m.Name{Path: entry.Meta().Path, Base: newBase}
-			a.renameEntry(file, newName)
-			entry.SetState(m.Pending)
-		}
-	}
-	a.clearPath(parentName.Path)
-}
+// 		newBase := folder.uniqueName(entry.Meta().Base)
+// 		newName := m.Name{Path: entry.Meta().Path, Base: newBase}
+// 		a.renameEntry(file, newName)
+// 		entry.SetState(m.Pending)
+// 	}
+// }
+// a.clearPath(parentName.Path)
+// }
 
 func (a *archive) renameEntry(file *m.File, newName m.Name) {
 	log.Printf("renameEntry: >>> from: %q, to: %q", file.Id, newName)
@@ -87,9 +96,10 @@ func (a *archive) renameEntry(file *m.File, newName m.Name) {
 		To:   newName,
 	})
 
-	a.getFolder(file.Path).deleteEntry(file.Base)
+	delete(a.folders[file.Path].files, file.Base)
 	file.Name = newName
-	a.getFolder(file.Path).insertEntry(file)
+	file.SetState(m.Pending)
+	a.folders[file.Path].files[file.Base] = file
 }
 
 func (a *archive) currentFolder() *folder {
@@ -106,24 +116,10 @@ func (a *archive) getFolder(path m.Path) *folder {
 }
 
 func (a *archive) parents(file *m.File, proc func(parent *m.Folder)) {
-	name := file.ParentName()
-	for name.Base != "." {
-		proc(a.getFolder(name.Path).entry(name.Base).(*m.Folder))
-		name = name.Path.ParentName()
-	}
-}
-
-func (a *archive) updateFolderStates(path m.Path) m.State {
-	state := m.Resolved
-	folder := a.getFolder(path)
-	for _, entry := range folder.entries {
-		switch entry := entry.(type) {
-		case *m.Folder:
-			entry.SetState(a.updateFolderStates(m.Path(entry.Name.String())))
-			state = state.Merge(entry.State())
-		case *m.File:
-			state = state.Merge(entry.State())
-		}
-	}
-	return state
+	panic("ERROR")
+	// name := file.ParentName()
+	// for name.Base != "." {
+	// 	proc(a.getFolder(name.Path).entry(name.Base).(*m.Folder))
+	// 	name = name.Path.ParentName()
+	// }
 }

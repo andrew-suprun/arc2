@@ -42,6 +42,10 @@ func (name Name) String() string {
 	return filepath.Join(name.Path.String(), name.Base.String())
 }
 
+func (n Name) ChildPath() Path {
+	return Path(filepath.Join(n.Path.String(), n.Base.String()))
+}
+
 type Id struct {
 	Root
 	Name

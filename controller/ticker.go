@@ -33,10 +33,10 @@ func (c *controller) handleTick(tick m.Tick) {
 	}
 
 	for _, archive := range c.archives {
-		hashed := archive.fileHashed + archive.totalHashed - archive.prevHashed
+		hashed := archive.fileHashedSize + archive.totalHashedSize - archive.prevHashedSize
 		archive.speed = float64(hashed) / (seconds * 1024 * 1024)
-		archive.prevHashed = archive.fileHashed + archive.totalHashed
-		remainig := archive.totalSize - archive.fileHashed - archive.totalHashed
+		archive.prevHashedSize = archive.fileHashedSize + archive.totalHashedSize
+		remainig := archive.totalSize - archive.fileHashedSize - archive.totalHashedSize
 		if hashed == 0 {
 			archive.timeRemaining = 0
 		} else {

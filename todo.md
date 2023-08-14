@@ -1,6 +1,6 @@
 * use slices.Delete to delete element from slice; no need to force sorting after
-* use slices.Index when possible
 * use slices.BinarySearch/Insert to reduce need for sorting
+* use slices.Index when possible
 * sort using slices.SortFunc and cmp.Compare
 * switch log to slog
 * ??? make File an interface, maybe

@@ -3,7 +3,6 @@ package controller
 import (
 	m "arc/model"
 	"cmp"
-	"slices"
 	"strings"
 )
 
@@ -77,8 +76,4 @@ func cmpByAscendingSize(a, b m.Entry) int {
 
 func cmpByDescendingSize(a, b m.Entry) int {
 	return cmpByAscendingSize(b, a)
-}
-
-func (f *folder) sort() {
-	slices.SortFunc(f.entries, f.cmpFunc)
 }
