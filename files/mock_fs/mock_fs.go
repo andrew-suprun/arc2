@@ -68,7 +68,10 @@ func (fs *mockFs) handleCommand(cmd m.FileCommand) {
 					if copied > meta.Size {
 						copied = meta.Size
 					}
-					fs.eventStream.Push(m.CopyingProgress(copied))
+					fs.eventStream.Push(m.CopyingProgress{
+						Id:     meta.Id,
+						Copied: copied,
+					})
 					if copied == meta.Size {
 						break
 					}
@@ -201,7 +204,7 @@ var metaMap = map[m.Root]map[string]m.Hash{
 	"origin": {
 		"a/b/c/d": "abcd",
 		"b/0000":  "0000",
-		// "6666":            "6666",
+		"6666":    "6666",
 		// "7777":            "7777",
 		// "a/b/e/f.txt":     "gggg",
 		// "a/b/e/g.txt":     "tttt",

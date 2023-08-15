@@ -56,7 +56,6 @@ func (f *fileFs) copyFile(copy m.CopyFile) {
 	log.Printf("### copy from %q", copy.From)
 	for _, to := range copy.To {
 		log.Printf("### copy   to %q", to)
-
 	}
 	defer func() {
 		f.events.Push(m.FileCopied(copy))
@@ -95,7 +94,10 @@ func (f *fileFs) copyFile(copy m.CopyFile) {
 		}
 		if reported < minCopied {
 			reported = minCopied
-			f.events.Push(m.CopyingProgress(reported))
+			f.events.Push(m.CopyingProgress{
+				Id:     copy.From,
+				Copied: reported,
+			})
 		}
 		if !hasValue {
 			break

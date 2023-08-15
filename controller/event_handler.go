@@ -19,17 +19,14 @@ func (c *controller) handleEvent(event any) {
 	}
 	switch event := event.(type) {
 	case m.FileScanned:
-		archive := c.archives[event.Root]
-		file := m.NewFile(event.Meta, m.Scanned)
-		archive.totalSize += file.Size
-		folder := archive.getFolder(file.Path)
-		folder.files[file.Base] = file
+		file := &file{Meta: event.Meta, State: m.Scanned, progressSize: event.Meta.Size}
+		c.archive(event.Id).getFolder(event.Path).files[event.Base] = file
 
 	case m.ArchiveScanned:
-		c.archives[event.Root].scanned = true
+		c.archives[event.Root].state = hashing
 
 	case m.FileHashed:
-		file := c.archives[event.Root].getFolder(event.Path).files[event.Base]
+		file := c.file(event.Id)
 		file.Hash = event.Hash
 		file.State = m.Hashed
 		c.byHash[event.Hash] = append(c.byHash[event.Hash], file)
@@ -50,68 +47,98 @@ func (c *controller) handleEvent(event any) {
 		// No Action Needed
 
 	case m.FileCopied:
-		c.archives[event.From.Root].folders[event.From.Path].files[event.From.Base].State = m.Resolved
-		for _, to := range event.To {
-			c.archives[to.Root].folders[to.Path].files[to.Base].State = m.Resolved
-		}
+		c.file(event.From).State = m.Copied
 
 	case m.HashingProgress:
-		c.handleHashingProgress(event)
+		file := c.file(event.Id)
+		file.State = m.Hashing
+		file.progressDone = event.Hashed
 
 	case m.CopyingProgress:
-		c.handleCopyingProgress(event)
+		file := c.file(event.Id)
+		file.State = m.Copying
+		file.progressDone = event.Copied
 
 	case m.ScreenSize:
 		c.screenSize = w.Size{Width: event.Width, Height: event.Height}
 
 	case m.SelectArchive:
 		if event.Idx < len(c.roots) {
-			c.archive = c.archives[c.roots[event.Idx]]
+			c.currRoot = c.roots[event.Idx]
 		}
 
 	case m.Enter:
-		c.archive.enter()
+		archive := c.currArchive()
+		folder := c.currFolder()
+		base := folder.selectedBase
+		if folder.files[base] == nil {
+			archive.currentPath = m.Path(filepath.Join(archive.currentPath.String(), base.String()))
+		}
 
 	case m.Exit:
-		c.archive.exit()
+		archive := c.currArchive()
+		if archive.currentPath == "" {
+			return
+		}
+		parts := strings.Split(archive.currentPath.String(), "/")
+		if len(parts) == 1 {
+			archive.currentPath = ""
+		}
+		archive.currentPath = m.Path(filepath.Join(parts[:len(parts)-1]...))
 
 	case m.Open:
-		c.archive.open()
+		c.open()
 
 	case m.RevealInFinder:
-		c.archive.revealInFinder()
+		c.reveal()
 
 	case m.MoveSelection:
-		log.Printf("m.MoveSelection: Lines: %d", event.Lines)
-		folder := c.archive.currentFolder()
+		folder := c.currFolder()
 		folder.moveSelection(event.Lines)
-		folder.makeSelectedVisible(c.archive.fileTreeLines)
+		folder.makeSelectedVisible(c.currArchive().fileTreeLines)
 
 	case m.SelectFirst:
-		c.archive.currentFolder().selectFirst()
+		folder := c.currFolder()
+		folder.selectedBase = ""
+		folder.selectedIdx = 0
 
 	case m.SelectLast:
-		c.archive.currentFolder().selectLast()
+		folder := c.currFolder()
+		folder.selectedBase = ""
+		folder.selectedIdx = folder.entries - 1
 
 	case m.Scroll:
-		c.archive.currentFolder().moveOffset(event.Lines, c.archive.fileTreeLines)
+		c.currFolder().moveOffset(event.Lines, c.currArchive().fileTreeLines)
 
 	case m.MouseTarget:
-		c.archive.mouseTarget(event.Command)
+		switch cmd := event.Command.(type) {
+		case m.SelectFile:
+			c.selectFile(cmd)
+
+		case m.SelectFolder:
+			c.currArchive().currentPath = m.Path(cmd)
+
+		case m.SortColumn:
+			folder := c.currFolder()
+			folder.selectSortColumn(cmd)
+			folder.makeSelectedVisible(c.currArchive().fileTreeLines)
+		}
 
 	case m.PgUp:
-		folder := c.archive.currentFolder()
-		folder.moveOffset(-c.archive.fileTreeLines, c.archive.fileTreeLines)
-		folder.moveSelection(-c.archive.fileTreeLines)
+		archive := c.currArchive()
+		folder := c.currFolder()
+		folder.moveOffset(-archive.fileTreeLines, archive.fileTreeLines)
+		folder.moveSelection(-archive.fileTreeLines)
 
 	case m.PgDn:
-		folder := c.archive.currentFolder()
-		folder.moveOffset(c.archive.fileTreeLines, c.archive.fileTreeLines)
-		folder.moveSelection(c.archive.fileTreeLines)
+		archive := c.currArchive()
+		folder := c.currFolder()
+		folder.moveOffset(archive.fileTreeLines, archive.fileTreeLines)
+		folder.moveSelection(archive.fileTreeLines)
 
 	case m.Tab:
 		c.tab()
-		c.archive.currentFolder().makeSelectedVisible(c.archive.fileTreeLines)
+		c.currFolder().makeSelectedVisible(c.currArchive().fileTreeLines)
 
 	case m.ResolveOne:
 		c.resolveSelected()
@@ -123,7 +150,8 @@ func (c *controller) handleEvent(event any) {
 		// TODO: Implement, maybe?
 
 	case m.Delete:
-		// folder := c.currentFolder()
+		// TODO
+		// folder := c.currFolder()
 		// c.deleteFile(folder.selectedEntry)
 
 	case m.Error:
@@ -133,8 +161,8 @@ func (c *controller) handleEvent(event any) {
 	case m.Quit:
 		c.quit = true
 
-	case m.DebugPrintState:
-		log.Println(c.String())
+	case m.DebugPrintView:
+		log.Println(c.view().String())
 
 	case m.DebugPrintRootWidget:
 		log.Println(c.view().RootWidget())
@@ -144,104 +172,17 @@ func (c *controller) handleEvent(event any) {
 	}
 }
 
-func (a *archive) archiveScanned() {
-	a.scanned = true
-}
-
-func (c *controller) fileHashed(event m.FileHashed) {
-	folder := c.archive.folders[event.Path]
-	file := folder.files[event.Base]
-	file.Hash = event.Hash
-	c.byHash[event.Hash] = append(c.byHash[event.Hash], file)
-}
-
-func (a *archive) archiveHashed() {
-	a.state = ready
-}
-
-func (a *archive) addFile(file *m.File) {
-	panic("ERROR")
-	// a.insertEntry(file)
-	// name := file.ParentName()
-	// for name.Base != "." {
-	// 	parentFolder := a.getFolder(name.Path)
-	// 	entry := parentFolder.entry(name.Base)
-
-	// 	if folderEntry, ok := entry.(*m.Folder); ok {
-	// 		folderEntry.Size += file.Size
-	// 		if folderEntry.ModTime.Before(file.ModTime) {
-	// 			folderEntry.ModTime = file.ModTime
-	// 		}
-	// 	} else {
-	// 		folderEntry := m.NewFolder(m.Meta{
-	// 			Id: m.Id{
-	// 				Root: file.Root,
-	// 				Name: name,
-	// 			},
-	// 			Size:    file.Size,
-	// 			ModTime: file.ModTime,
-	// 		},
-	// 			m.Scanned,
-	// 		)
-	// 		a.insertEntry(folderEntry)
-
-	// 	}
-
-	// 	name = name.Path.ParentName()
-	// }
-}
-
-// func (a *archive) insertEntry(entry m.Entry) {
-// 	folder := a.getFolder(entry.Meta().Path)
-// 	folder.insertEntry(entry)
-// }
-
-func (a *archive) enter() {
-	folder := a.currentFolder()
-	base := folder.selectedBase
-	file := folder.files[base]
-	if file == nil {
-		a.currentPath = m.Path(filepath.Join(a.currentPath.String(), base.String()))
-	}
-}
-
-func (a *archive) exit() {
-	if a.currentPath == "" {
-		return
-	}
-	parts := strings.Split(a.currentPath.String(), "/")
-	if len(parts) == 1 {
-		a.currentPath = ""
-	}
-	a.currentPath = m.Path(filepath.Join(parts[:len(parts)-1]...))
-}
-
-func (a *archive) mouseTarget(cmd any) {
-	switch cmd := cmd.(type) {
-	case m.SelectFile:
-		a.selectFile(cmd)
-
-	case m.SelectFolder:
-		a.currentPath = m.Path(cmd)
-
-	case m.SortColumn:
-		folder := a.currentFolder()
-		folder.selectSortColumn(cmd)
-		folder.makeSelectedVisible(a.fileTreeLines)
-	}
-}
-
 func (c *controller) tab() {
 	panic("IMPLEMENT c.tab()")
-	// selected := c.archive.currentFolder().selected()
-	// file, ok := selected.(*m.File)
+	// selected := c.archive.currFolder().selected()
+	// file, ok := selected.(*File)
 	// if !ok {
 	// 	return
 	// }
 
 	// sameHash := c.byHash[file.Hash]
 
-	// slices.SortFunc(sameHash, func(a, b *m.File) int {
+	// slices.SortFunc(sameHash, func(a, b *File) int {
 	// 	result := cmp.Compare(c.archives[a.Root].idx, c.archives[b.Root].idx)
 	// 	if result != 0 {
 	// 		return result
@@ -257,7 +198,7 @@ func (c *controller) tab() {
 	// var newSelected m.Entry = sameHash[(idx+1)%len(sameHash)]
 	// c.archive = c.archives[newSelected.Meta().Root]
 	// c.archive.currentPath = newSelected.Meta().Path
-	// folder := c.archive.currentFolder()
+	// folder := c.archive.currFolder()
 	// folder.selectedIdx = slices.Index(folder.entries, newSelected)
 	// folder.makeSelectedVisible(c.archive.fileTreeLines)
 }
@@ -270,27 +211,6 @@ func (c *controller) String() string {
 	}
 
 	return buf.String()
-}
-
-func (c *controller) handleHashingProgress(event m.HashingProgress) {
-	archive := c.archives[event.Root]
-	folder := archive.folders[event.Path]
-	file := folder.files[event.Base]
-	file.State = m.Hashing
-	file.Progress = event.Hashed
-}
-
-func (c *controller) handleCopyingProgress(event m.CopyingProgress) {
-	c.fileCopiedSize = uint64(event)
-	info := &progressInfo{
-		tab:           " Copying",
-		value:         float64(c.totalCopiedSize+uint64(c.fileCopiedSize)) / float64(c.copySize),
-		speed:         c.copySpeed,
-		timeRemaining: c.timeRemaining,
-	}
-	for _, archive := range c.archives {
-		archive.progressInfo = info
-	}
 }
 
 func (c *controller) analyzeDiscrepancies() {
@@ -328,27 +248,28 @@ func (c *controller) analyzeDiscrepancy(hash m.Hash) {
 
 func (c *controller) resolveSelected() {
 	panic("IMPLEMENT c.resolveSelected()")
-	// c.resolveFile(c.archive.currentFolder().selectedEntry)
+	// c.resolveFile(c.archive.currFolder().selectedEntry)
 }
 
 func (c *controller) resolveAll() {
-	c.resolveFolder(c.archive.currentPath)
+	c.resolveFolder(c.currArchive().currentPath)
 }
 
 func (c *controller) resolveFile(entry v.Entry) {
-	switch entry.Kind {
-	case v.Regular:
-		c.resolveRegularFile(entry.File)
-	case v.Folder:
-		c.resolveFolder(entry.Path)
-	}
+	// TODO
+	// switch entry.Kind {
+	// case v.Regular:
+	// 	c.resolveRegularFile(entry.File)
+	// case v.Folder:
+	// 	c.resolveFolder(entry.Path)
+	// }
 }
 
 func (c *controller) resolveFolder(path m.Path) {
 	panic("IMPLEMENT c.resolveFolder()")
 	// for _, entry := range c.archive.folders[path].entries {
 	// 	switch entry := entry.(type) {
-	// 	case *m.File:
+	// 	case *File:
 	// 		if entry.State == m.Divergent && entry.Counts[c.archive.idx] == 1 {
 	// 			c.resolveFile(entry)
 	// 		}
@@ -358,13 +279,13 @@ func (c *controller) resolveFolder(path m.Path) {
 	// }
 }
 
-func (c *controller) setStates(files []*m.File, state m.State) {
+func (c *controller) setStates(files []*file, state m.State) {
 	for _, file := range files {
 		file.State = state
 	}
 }
 
-func (c *controller) setCounts(files []*m.File, state m.State) {
+func (c *controller) setCounts(files []*file, state m.State) {
 	if state != m.Divergent {
 		for _, file := range files {
 			file.Counts = nil
@@ -387,14 +308,14 @@ func (c *controller) setCounts(files []*m.File, state m.State) {
 	}
 }
 
-func (c *controller) resolveRegularFile(file *m.File) {
+func (c *controller) resolveRegularFile(meta *file) {
 	panic("IMPLEMENT: c.resolveRegularFile()")
 	// c.clearName(file)
 
 	// for _, archive := range c.archives {
 	// 	if folder, ok := archive.folders[file.Path]; ok {
 	// 		entry := folder.entry(file.Base)
-	// 		if archiveFile, ok := entry.(*m.File); ok && archiveFile.Hash != file.Hash {
+	// 		if archiveFile, ok := entry.(*File); ok && archiveFile.Hash != file.Hash {
 
 	// 		}
 	// 	}
@@ -438,7 +359,7 @@ func (c *controller) resolveRegularFile(file *m.File) {
 	// copyRoots := []m.Id{}
 	// for _, archive := range c.archives {
 	// 	log.Printf("resolveFile: archive:2: %q", archive.root)
-	// 	sameHash := []*m.File{}
+	// 	sameHash := []*File{}
 	// 	for _, entry := range c.byHash[file.Hash] {
 	// 		if entry.Root == archive.root {
 	// 			sameHash = append(sameHash, entry)
@@ -455,7 +376,7 @@ func (c *controller) resolveRegularFile(file *m.File) {
 	// 				ModTime: file.ModTime,
 	// 			},
 	// 			Hash:  file.Hash,
-	// 			Kind:  m.FileRegular,
+	// 			Kind:  FileRegular,
 	// 			State: m.Pending,
 	// 		}
 	// 		file.State = m.Pending
@@ -512,17 +433,17 @@ func (c *controller) resolveRegularFile(file *m.File) {
 	// }
 }
 
-func (c *controller) clearName(file *m.File) {
-	if c.nameCollidesWithPath(file.Name) {
+func (c *controller) clearName(meta *file) {
+	if c.nameCollidesWithPath(meta.Name) {
 		var newName m.Name
 		for i := 1; ; i++ {
-			newName = newSuffix(file.Name, i)
+			newName = newSuffix(meta.Name, i)
 			if !c.nameCollidesWithPath(newName) {
 				break
 			}
 		}
-		if newName != file.Name {
-			c.archives[file.Root].renameEntry(file, newName)
+		if newName != meta.Name {
+			c.renameFile(meta, newName)
 		}
 	}
 }
@@ -579,16 +500,6 @@ func stripIdx(name string) string {
 	return name
 }
 
-func (f *folder) selectFirst() {
-	f.selectedBase = ""
-	f.selectedIdx = 0
-}
-
-func (f *folder) selectLast() {
-	f.selectedBase = ""
-	f.selectedIdx = f.entries - 1
-}
-
 func (f *folder) moveSelection(lines int) {
 	f.selectedBase = ""
 	f.selectedIdx += lines
@@ -599,7 +510,6 @@ func (f *folder) moveSelection(lines int) {
 	if f.selectedIdx < 0 {
 		f.selectedIdx = 0
 	}
-	log.Printf("moveSelection: selectedIdx: %d", f.selectedIdx)
 }
 
 func (f *folder) moveOffset(lines, fileTreeLines int) {
@@ -613,20 +523,24 @@ func (f *folder) moveOffset(lines, fileTreeLines int) {
 	}
 }
 
-func (a *archive) open() {
-	id := m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: a.currentFolder().selectedBase}}
-	exec.Command("open", id.String()).Start()
-}
-
-func (a *archive) revealInFinder() {
-	id := m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: a.currentFolder().selectedBase}}
+func (c *controller) reveal() {
+	archive := c.currArchive()
+	folder := c.currFolder()
+	id := m.Id{Root: c.currRoot, Name: m.Name{Path: archive.currentPath, Base: folder.selectedBase}}
 	exec.Command("open", "-R", id.String()).Start()
 }
 
-func (a *archive) selectFile(cmd m.SelectFile) {
-	folder := a.currentFolder()
+func (c *controller) open() {
+	archive := c.currArchive()
+	folder := c.currFolder()
+	id := m.Id{Root: c.currRoot, Name: m.Name{Path: archive.currentPath, Base: folder.selectedBase}}
+	exec.Command("open", id.String()).Start()
+}
+
+func (c *controller) selectFile(cmd m.SelectFile) {
+	folder := c.currFolder()
 	if folder.selectedBase == cmd.Base && time.Since(folder.lastMouseEventTime).Seconds() < 0.5 {
-		a.open()
+		c.open()
 	} else {
 		folder.selectedBase = cmd.Base
 	}

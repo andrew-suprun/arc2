@@ -6,21 +6,24 @@ import (
 	"time"
 )
 
-type File struct {
-	Meta
-	State
-	Hash
-	Counts   []int
-	Progress uint64
+type Meta struct {
+	Id
+	Size    uint64
+	ModTime time.Time
 }
 
-func NewFile(meta Meta, state State) *File {
-	return &File{Meta: meta, State: state}
+func (m *Meta) String() string {
+	return fmt.Sprintf("Meta{Root: %q, Path: %q Name: %q, Size: %d, ModTime: %s}",
+		m.Root, m.Path, m.Base, m.Size, m.ModTime.Format(time.DateTime))
 }
 
-func (f *File) String() string {
-	return fmt.Sprintf("File{FileId: %q, Size: %d, Hash: %q, State: %s, Hashed: %d}",
-		f.Id, f.Size, f.Hash, f.State, f.Progress)
+type Id struct {
+	Root
+	Name
+}
+
+func (id Id) String() string {
+	return filepath.Join(id.Root.String(), id.Path.String(), id.Base.String())
 }
 
 type Root string
@@ -63,30 +66,10 @@ func (n Name) ChildPath() Path {
 	return Path(filepath.Join(n.Path.String(), n.Base.String()))
 }
 
-type Id struct {
-	Root
-	Name
-}
-
-func (id Id) String() string {
-	return filepath.Join(id.Root.String(), id.Path.String(), id.Base.String())
-}
-
 type Hash string
 
 func (hash Hash) String() string {
 	return string(hash)
-}
-
-type Meta struct {
-	Id
-	Size    uint64
-	ModTime time.Time
-}
-
-func (m *Meta) String() string {
-	return fmt.Sprintf("Meta{Root: %q, Path: %q Name: %q, Size: %d, ModTime: %s}",
-		m.Root, m.Path, m.Base, m.Size, m.ModTime.Format(time.DateTime))
 }
 
 type State int
@@ -94,8 +77,9 @@ type State int
 const (
 	Resolved State = iota
 	Scanned
-	Hashing
 	Hashed
+	Hashing
+	Copied
 	Pending
 	Copying
 	Divergent
@@ -115,6 +99,8 @@ func (s State) String() string {
 		return "Pending"
 	case Copying:
 		return "Copying"
+	case Copied:
+		return "Copied"
 	case Divergent:
 		return "Divergent"
 	}

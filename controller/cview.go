@@ -7,8 +7,8 @@ import (
 )
 
 func (c *controller) view() *v.View {
-	archive := c.archive
-	currentFolder := archive.currentFolder()
+	archive := c.currArchive()
+	currentFolder := archive.currFolder()
 	view := &v.View{
 		Archive:   archive.root,
 		Path:      archive.currentPath,
@@ -16,26 +16,20 @@ func (c *controller) view() *v.View {
 	}
 
 	subFolders := map[m.Base]v.Entry{}
+	var totalSize, progress uint64
 	for path, folder := range archive.folders {
-		var totalSize, progress uint64
 		switch archive.state {
 		case hashing:
-			view.Progress = &v.Progress{
-				Tab: " Hashing",
-			}
 			for _, file := range folder.files {
 				totalSize += file.Size
 				switch file.State {
 				case m.Hashing:
-					progress += file.Progress
+					progress += file.progressDone
 				case m.Hashed:
 					progress += file.Size
 				}
 			}
 		case copying:
-			view.Progress = &v.Progress{
-				Tab: " Copying",
-			}
 			for _, file := range folder.files {
 				totalSize += file.Size
 				switch file.State {
@@ -44,11 +38,9 @@ func (c *controller) view() *v.View {
 					progress += file.Size
 				case m.Copying:
 					totalSize += file.Size
-					progress += file.Progress
+					progress += file.progressDone
 				}
 			}
-		default:
-			view.Progress = nil
 		}
 		if path == archive.currentPath {
 			archive.populateFiles(view, folder)
@@ -56,6 +48,22 @@ func (c *controller) view() *v.View {
 			archive.populateSubFolder(view, folder, subFolders)
 		}
 	}
+
+	switch archive.state {
+	case hashing:
+		view.Progress = &v.Progress{
+			Tab:   " Hashing",
+			Value: float64(progress) / float64(totalSize),
+		}
+	case copying:
+		view.Progress = &v.Progress{
+			Tab:   " Copying",
+			Value: float64(progress) / float64(totalSize),
+		}
+	default:
+		view.Progress = nil
+	}
+
 	for _, subFolder := range subFolders {
 		view.Entries = append(view.Entries, subFolder)
 	}
@@ -93,7 +101,13 @@ func (c *controller) view() *v.View {
 
 func (a *archive) populateFiles(view *v.View, folder *folder) {
 	for _, file := range folder.files {
-		view.Entries = append(view.Entries, v.Entry{File: file, Kind: v.Regular})
+		view.Entries = append(view.Entries, v.Entry{
+			Meta:         file.Meta,
+			Kind:         v.Regular,
+			State:        file.State,
+			ProgressSize: file.progressSize,
+			ProgressDone: file.progressDone,
+		})
 	}
 }
 
@@ -107,12 +121,11 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 	entry, ok := subFolders[base]
 	if !ok {
 		entry = v.Entry{
-			File: &m.File{
-				Meta: m.Meta{
-					Id: m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: base}},
-				},
-				State: m.Scanned,
+			Meta: m.Meta{
+				Id: m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: base}},
 			},
+			Kind:  v.Folder,
+			State: m.Scanned,
 		}
 		subFolders[base] = entry
 	}
@@ -122,5 +135,7 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 			entry.ModTime = file.ModTime
 		}
 		entry.State = entry.State.Merge(file.State)
+		entry.ProgressSize += file.progressSize
+		entry.ProgressDone += file.progressDone
 	}
 }

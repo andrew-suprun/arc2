@@ -220,7 +220,7 @@ func (device *tcellRenderer) handleKeyEvent(key *tcell.EventKey) {
 		device.controllerEvents.Push(m.Delete{})
 
 	case "F10":
-		device.controllerEvents.Push(m.DebugPrintState{})
+		device.controllerEvents.Push(m.DebugPrintView{})
 	case "F12":
 		device.controllerEvents.Push(m.DebugPrintRootWidget{})
 

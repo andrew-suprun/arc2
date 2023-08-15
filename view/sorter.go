@@ -53,10 +53,6 @@ func cmpByAscendingName(a, b Entry) int {
 	return cmpByTime(a, b)
 }
 
-func cmpByDescendingName(a, b Entry) int {
-	return cmpByAscendingName(b, a)
-}
-
 func cmpByAscendingTime(a, b Entry) int {
 	result := cmpByTime(a, b)
 	if result != 0 {
@@ -71,10 +67,6 @@ func cmpByAscendingTime(a, b Entry) int {
 	return cmpBySize(a, b)
 }
 
-func cmpByDescendingTime(a, b Entry) int {
-	return cmpByAscendingTime(b, a)
-}
-
 func cmpByAscendingSize(a, b Entry) int {
 	result := cmpBySize(a, b)
 	if result != 0 {
@@ -87,8 +79,4 @@ func cmpByAscendingSize(a, b Entry) int {
 	}
 
 	return cmpByTime(a, b)
-}
-
-func cmpByDescendingSize(a, b Entry) int {
-	return cmpByAscendingSize(b, a)
 }

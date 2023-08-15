@@ -40,7 +40,7 @@ package controller
 // 		),
 // 		w.Scroll(m.Scroll{}, w.Constraint{Size: w.Size{Width: 0, Height: 0}, Flex: w.Flex{X: 1, Y: 1}},
 // 			func(size w.Size) w.Widget {
-// 				folder := a.currentFolder()
+// 				folder := a.currFolder()
 // 				a.fileTreeLines = size.Height
 // 				if folder.offsetIdx > len(folder.entries)+1-size.Height {
 // 					folder.offsetIdx = len(folder.entries) + 1 - size.Height
@@ -71,7 +71,7 @@ package controller
 // 	result := []w.Widget{w.Text(" "), state(file)}
 
 // 	switch file.(type) {
-// 	case *m.File:
+// 	case *File:
 // 		result = append(result, w.Text("   "))
 // 	case *m.Folder:
 // 		result = append(result, w.Text(" ▶ "))
@@ -104,7 +104,7 @@ package controller
 // 	}
 
 // 	buf := &strings.Builder{}
-// 	if file, ok := entry.(*m.File); ok {
+// 	if file, ok := entry.(*File); ok {
 // 		for _, count := range file.Counts {
 // 			fmt.Fprintf(buf, "%c", countRune(count))
 // 		}
@@ -123,7 +123,7 @@ package controller
 // }
 
 // func (a *archive) sortIndicator(column m.SortColumn) string {
-// 	folder := a.currentFolder()
+// 	folder := a.currFolder()
 // 	if column == folder.sortColumn {
 // 		if folder.sortAscending[column] {
 // 			return " ▲"

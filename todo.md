@@ -1,3 +1,4 @@
+* fix file hashing progress base for folders
 * use slices.Delete to delete element from slice; no need to force sorting after
 * use slices.BinarySearch/Insert to reduce need for sorting
 * use slices.Index when possible

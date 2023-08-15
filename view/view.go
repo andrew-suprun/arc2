@@ -4,7 +4,6 @@ import (
 	m "arc/model"
 	w "arc/widgets"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,8 +22,12 @@ type View struct {
 }
 
 type Entry struct {
-	*m.File
+	m.Meta
 	Kind
+	m.State
+	Counts       []int
+	ProgressSize uint64
+	ProgressDone uint64
 }
 
 type Kind int
@@ -130,7 +133,7 @@ func (a *View) fileRow(file Entry) []w.Widget {
 func state(entry Entry) w.Widget {
 	switch entry.State {
 	case m.Hashing, m.Copying:
-		value := float64(entry.Progress) / float64(entry.Size)
+		value := float64(entry.ProgressDone) / float64(entry.ProgressSize)
 		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 	case m.Pending:
 		return w.Text("Pending").Width(10)
@@ -140,11 +143,15 @@ func state(entry Entry) w.Widget {
 		return w.Text("").Width(10)
 	}
 
+	return w.Text(Counts(entry.Counts)).Width(10)
+}
+
+func Counts(counts []int) string {
 	buf := &strings.Builder{}
-	for _, count := range entry.Counts {
+	for _, count := range counts {
 		fmt.Fprintf(buf, "%c", countRune(count))
 	}
-	return w.Text(buf.String()).Width(10)
+	return buf.String()
 }
 
 func countRune(count int) rune {
@@ -229,16 +236,54 @@ func (a *View) styleFile(file Entry, selected bool) w.Style {
 var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
 func (a *View) statusColor(file Entry) (color byte) {
-	log.Printf("statusColor: file: %q, color: %s", file.Id, file.State)
 	switch file.State {
-	case m.Resolved, m.Hashed:
-		return 195
-	case m.Scanned, m.Hashing:
+	case m.Scanned:
 		return 248
-	case m.Pending, m.Copying:
+	case m.Resolved, m.Hashed, m.Copied, m.Hashing, m.Copying:
+		return 195
+	case m.Pending:
 		return 214
 	case m.Divergent:
 		return 196
 	}
 	return 231
+}
+
+func (v *View) String() string {
+	buf := &strings.Builder{}
+	fmt.Fprintf(buf, "View:\n")
+	fmt.Fprintf(buf, "  Archive: %q\n", v.Archive)
+	fmt.Fprintf(buf, "  Path: %q\n", v.Path)
+	fmt.Fprintf(buf, "  SelectedBase: %q\n", v.SelectedBase)
+	fmt.Fprintf(buf, "  OffsetIdx: %d\n", v.OffsetIdx)
+	fmt.Fprintf(buf, "  FileTreeLines: %d\n", v.FileTreeLines)
+	fmt.Fprintf(buf, "  SortColumn: %q\n", v.SortColumn)
+	fmt.Fprintf(buf, "  SortAscending: %v\n", v.SortAscending)
+	if v.Progress != nil {
+		fmt.Fprintf(buf, "  Progress:\n")
+		fmt.Fprintf(buf, "    Tab: %q\n", v.Progress.Tab)
+		fmt.Fprintf(buf, "    Value: %v\n", v.Progress.Value)
+		fmt.Fprintf(buf, "    TimeRemaining: %v\n", v.Progress.TimeRemaining)
+	}
+	fmt.Fprintf(buf, "  Entries:\n")
+	for i := range v.Entries {
+		fmt.Fprintf(buf, "    %s\n", &v.Entries[i])
+	}
+
+	return buf.String()
+}
+
+func (e *Entry) String() string {
+	return fmt.Sprintf("%s, Kind: %s, State: %s, Counts: %q, ProgressSize: %d, ProgressDone: %d",
+		&e.Meta, e.Kind, e.State, Counts(e.Counts), e.ProgressSize, e.ProgressDone)
+}
+
+func (k Kind) String() string {
+	switch k {
+	case Regular:
+		return "Regular"
+	case Folder:
+		return "Folder"
+	}
+	return ""
 }

@@ -76,7 +76,10 @@ type HashingProgress struct {
 
 func (HashingProgress) event() {}
 
-type CopyingProgress uint64
+type CopyingProgress struct {
+	Id
+	Copied uint64
+}
 
 func (CopyingProgress) event() {}
 
@@ -174,9 +177,9 @@ type PgDn struct{}
 
 func (PgDn) event() {}
 
-type DebugPrintState struct{}
+type DebugPrintView struct{}
 
-func (DebugPrintState) event() {}
+func (DebugPrintView) event() {}
 
 type DebugPrintRootWidget struct{}
 
