@@ -18,6 +18,39 @@ func (c *controller) view() *v.View {
 
 	subFolders := map[m.Base]m.Entry{}
 	for path, folder := range archive.folders {
+		var totalSize, progress uint64
+		switch archive.state {
+		case hashing:
+			view.Progress = &v.Progress{
+				Tab: " Hashing",
+			}
+			for _, file := range folder.files {
+				totalSize += file.Size
+				switch file.State() {
+				case m.Hashing:
+					progress += file.Progress
+				case m.Hashed:
+					progress += file.Size
+				}
+			}
+		case copying:
+			view.Progress = &v.Progress{
+				Tab: " Copying",
+			}
+			for _, file := range folder.files {
+				totalSize += file.Size
+				switch file.State() {
+				case m.Pending:
+					totalSize += file.Size
+					progress += file.Size
+				case m.Copying:
+					totalSize += file.Size
+					progress += file.Progress
+				}
+			}
+		default:
+			view.Progress = nil
+		}
 		if path == archive.currentPath {
 			archive.populateFiles(view, folder)
 		} else if strings.HasPrefix(path.String(), archive.currentPath.String()) {
@@ -56,8 +89,6 @@ func (c *controller) view() *v.View {
 	}
 	view.SelectedBase = currentFolder.selectedBase
 
-	c.analyzeDiscrepancies()
-
 	return view
 }
 
@@ -80,7 +111,7 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 			m.Meta{
 				Id: m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: base}},
 			},
-			m.Resolved,
+			m.Scanned,
 		)
 		subFolders[base] = entry
 	}

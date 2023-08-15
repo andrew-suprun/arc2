@@ -4,6 +4,7 @@ import (
 	m "arc/model"
 	w "arc/widgets"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,8 +25,7 @@ type View struct {
 type Progress struct {
 	Tab           string
 	Value         float64
-	Speed         float64
-	TimeRemaining time.Duration
+	TimeRemaining time.Duration // TODO Implement
 }
 
 var (
@@ -125,6 +125,8 @@ func state(entry m.Entry) w.Widget {
 		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 	}
 	switch entry.State() {
+	case m.Hashing, m.Copying:
+		// TODO
 	case m.Pending:
 		return w.Text("Pending").Width(10)
 	case m.Divergent:
@@ -187,7 +189,6 @@ func (a *View) progressWidget() w.Widget {
 	return w.Styled(styleStatusLine, w.Row(w.Constraint{Size: w.Size{Width: 0, Height: 1}, Flex: w.Flex{X: 1, Y: 0}},
 		w.Text(a.Progress.Tab), w.Text(" "),
 		w.Text(fmt.Sprintf(" %6.2f%%", a.Progress.Value*100)),
-		w.Text(fmt.Sprintf(" %5.1f Mb/S", a.Progress.Speed)),
 		w.Text(fmt.Sprintf(" ETA %6s", a.Progress.TimeRemaining.Truncate(time.Second))), w.Text(" "),
 		w.Styled(styleProgressBar, w.ProgressBar(a.Progress.Value)),
 		w.Text(" "),
@@ -224,15 +225,14 @@ func (a *View) styleFile(file m.Entry, selected bool) w.Style {
 
 var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
-func (a *View) statusColor(file m.Entry) byte {
+func (a *View) statusColor(file m.Entry) (color byte) {
+	log.Printf("statusColor: file: %q, color: %s", file.Meta().Id, file.State())
 	switch file.State() {
-	case m.Scanned:
-		return 248
-	case m.Hashing:
-		return 248
-	case m.Resolved:
+	case m.Resolved, m.Hashed:
 		return 195
-	case m.Pending:
+	case m.Scanned, m.Hashing:
+		return 248
+	case m.Pending, m.Copying:
 		return 214
 	case m.Divergent:
 		return 196

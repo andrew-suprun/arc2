@@ -63,15 +63,11 @@ func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []m
 
 	c.archive = c.archives[roots[0]]
 
-	go ticker(events)
-
 	for !c.quit {
 		events, _ := events.Pull()
 		for _, event := range events {
 			c.handleEvent(event)
 		}
-
-		c.analyzeDiscrepancies()
 
 		c.frames++
 		screen := w.NewScreen(c.screenSize)

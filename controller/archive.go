@@ -16,16 +16,13 @@ type archive struct {
 
 	*shared
 
-	state           archiveState
-	totalSize       uint64
-	totalHashedSize uint64
-	fileHashedSize  uint64
-	prevHashedSize  uint64
-	speed           float64
-	timeRemaining   time.Duration
-	progressInfo    *progressInfo
-	fileTreeLines   int
-	scanned         bool
+	state         archiveState
+	totalSize     uint64
+	speed         float64
+	timeRemaining time.Duration
+	progressInfo  *progressInfo
+	fileTreeLines int
+	scanned       bool
 }
 
 type archiveState int
@@ -61,32 +58,6 @@ func (a *archive) printTo(buf *strings.Builder) {
 	}
 }
 
-// TODO: ??? Need it?
-// func (a *archive) clearPath(path m.Path) {
-// log.Printf("clearPath: >>> root: %q, path: %q", a.root, path)
-// defer log.Printf("clearPath: <<< root: %q, path: %q", a.root, path)
-
-// parentName := path.ParentName()
-// if parentName.Base == "." {
-// 	return
-// }
-// folder := a.getFolder(parentName.Path)
-// for _, entry := range folder.entries {
-// 	if entry.Meta().Base == parentName.Base {
-// 		file, ok := entry.(*m.File)
-// 		if !ok {
-// 			return
-// 		}
-
-// 		newBase := folder.uniqueName(entry.Meta().Base)
-// 		newName := m.Name{Path: entry.Meta().Path, Base: newBase}
-// 		a.renameEntry(file, newName)
-// 		entry.SetState(m.Pending)
-// 	}
-// }
-// a.clearPath(parentName.Path)
-// }
-
 func (a *archive) renameEntry(file *m.File, newName m.Name) {
 	log.Printf("renameEntry: >>> from: %q, to: %q", file.Id, newName)
 	defer log.Printf("renameEntry: <<< from: %q, to: %q", file.Id, newName)
@@ -98,7 +69,7 @@ func (a *archive) renameEntry(file *m.File, newName m.Name) {
 
 	delete(a.folders[file.Path].files, file.Base)
 	file.Name = newName
-	file.SetState(m.Pending)
+	file.SetState(m.Resolved)
 	a.folders[file.Path].files[file.Base] = file
 }
 

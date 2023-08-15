@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"time"
 )
 
 type Event interface {
@@ -80,10 +79,6 @@ func (HashingProgress) event() {}
 type CopyingProgress uint64
 
 func (CopyingProgress) event() {}
-
-type Tick time.Time
-
-func (Tick) event() {}
 
 type Error struct {
 	Id    Id

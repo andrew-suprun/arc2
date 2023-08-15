@@ -30,17 +30,25 @@ func (c *controller) handleEvent(event any) {
 	case m.FileHashed:
 		file := c.archives[event.Root].getFolder(event.Path).files[event.Base]
 		file.Hash = event.Hash
-		file.SetState(m.Resolved)
+		file.SetState(m.Hashed)
 		c.byHash[event.Hash] = append(c.byHash[event.Hash], file)
+		log.Println("###", event, file.State())
+		log.Println("###", c.archives[event.Root].getFolder(event.Path).files[event.Base])
 
 	case m.ArchiveHashed:
 		c.archives[event.Root].state = ready
+		for _, archive := range c.archives {
+			if archive.state != ready {
+				return
+			}
+		}
+		c.analyzeDiscrepancies()
 
 	case m.FileDeleted:
 		// No Action Needed
 
 	case m.FileRenamed:
-		c.archives[event.From.Root].folders[event.To.Path].files[event.To.Base].SetState(m.Resolved)
+		// No Action Needed
 
 	case m.FileCopied:
 		c.archives[event.From.Root].folders[event.From.Path].files[event.From.Base].SetState(m.Resolved)
@@ -53,9 +61,6 @@ func (c *controller) handleEvent(event any) {
 
 	case m.CopyingProgress:
 		c.handleCopyingProgress(event)
-
-	case m.Tick:
-		c.handleTick(event)
 
 	case m.ScreenSize:
 		c.screenSize = w.Size{Width: event.Width, Height: event.Height}
@@ -270,23 +275,10 @@ func (c *controller) String() string {
 
 func (c *controller) handleHashingProgress(event m.HashingProgress) {
 	archive := c.archives[event.Root]
-	archive.fileHashedSize = event.Hashed
 	folder := archive.folders[event.Path]
 	file := folder.files[event.Base]
 	file.SetState(m.Hashing)
-	file.Hashed = event.Hashed
-
-	// c.archives[event.Root].progressInfo = &progressInfo{
-	// 	tab:           " Hashing",
-	// 	value:         float64(archive.totalHashedSize+uint64(archive.fileHashedSize)) / float64(archive.totalSize),
-	// 	speed:         archive.speed,
-	// 	timeRemaining: archive.timeRemaining,
-	// }
-
-	// archive.parents(file, func(file *m.Folder) {
-	// 	file.SetState(m.Hashing)
-	// 	file.Hashed = event.Hashed
-	// })
+	file.Progress = event.Hashed
 }
 
 func (c *controller) handleCopyingProgress(event m.CopyingProgress) {
@@ -312,25 +304,27 @@ var noName = m.Name{}
 
 func (c *controller) analyzeDiscrepancy(hash m.Hash) {
 	files := c.byHash[hash]
-	state := m.Resolved
+	divergent := false
 	if len(files) != len(c.roots) {
-		state = m.Divergent
+		divergent = true
 	}
-	if state != m.Divergent {
+	if !divergent {
 		name := m.Name{}
 		for _, file := range files {
 			if name == noName {
 				name = file.Name
 			}
 			if file.Name != name {
-				state = m.Divergent
+				divergent = true
 				break
 			}
 		}
 	}
 
-	c.setStates(files, state)
-	c.setCounts(files, state)
+	if divergent {
+		c.setStates(files, m.Divergent)
+		c.setCounts(files, m.Divergent)
+	}
 }
 
 func (c *controller) resolveSelected() {

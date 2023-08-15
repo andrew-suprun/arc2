@@ -44,8 +44,9 @@ func (f *Folder) SetState(state State) {
 type File struct {
 	common
 	Hash
-	Hashed uint64
-	Counts []int
+	Counts        []int
+	ProgressTotal uint64
+	Progress      uint64
 }
 
 func NewFile(meta Meta, state State) *File {
@@ -54,7 +55,7 @@ func NewFile(meta Meta, state State) *File {
 
 func (f *File) String() string {
 	return fmt.Sprintf("File{FileId: %q, Size: %d, Hash: %q, State: %s, Hashed: %d}",
-		f.Id, f.Size, f.Hash, f.State(), f.Hashed)
+		f.Id, f.Size, f.Hash, f.State(), f.Progress)
 }
 
 func (f *File) Meta() *Meta {

@@ -78,20 +78,26 @@ const (
 	Resolved State = iota
 	Scanned
 	Hashing
+	Hashed
 	Pending
+	Copying
 	Divergent
 )
 
 func (s State) String() string {
 	switch s {
+	case Resolved:
+		return "Resolved"
 	case Scanned:
 		return "Scanned"
 	case Hashing:
 		return "Hashing"
-	case Resolved:
-		return "Resolved"
+	case Hashed:
+		return "Hashed"
 	case Pending:
 		return "Pending"
+	case Copying:
+		return "Copying"
 	case Divergent:
 		return "Divergent"
 	}
