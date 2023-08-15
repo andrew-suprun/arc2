@@ -13,7 +13,7 @@ import (
 type View struct {
 	Archive       m.Root
 	Path          m.Path
-	Entries       []m.Entry
+	Entries       []Entry
 	SelectedBase  m.Base
 	FileTreeLines int
 	OffsetIdx     int
@@ -21,6 +21,18 @@ type View struct {
 	SortColumn    m.SortColumn
 	SortAscending bool
 }
+
+type Entry struct {
+	*m.File
+	Kind
+}
+
+type Kind int
+
+const (
+	Regular Kind = iota
+	Folder
+)
 
 type Progress struct {
 	Tab           string
@@ -84,8 +96,8 @@ func (v *View) folderWidget() w.Widget {
 					if i >= size.Height {
 						break
 					}
-					rows = append(rows, w.Styled(v.styleFile(file, v.SelectedBase == file.Meta().Base),
-						w.MouseTarget(m.SelectFile(file.Meta().Id), w.Row(rowConstraint,
+					rows = append(rows, w.Styled(v.styleFile(file, v.SelectedBase == file.Base),
+						w.MouseTarget(m.SelectFile(file.Id), w.Row(rowConstraint,
 							v.fileRow(file)...,
 						)),
 					))
@@ -97,36 +109,29 @@ func (v *View) folderWidget() w.Widget {
 	)
 }
 
-func (a *View) fileRow(file m.Entry) []w.Widget {
+func (a *View) fileRow(file Entry) []w.Widget {
 	result := []w.Widget{w.Text(" "), state(file)}
 
-	switch file.(type) {
-	case *m.File:
+	switch file.Kind {
+	case Regular:
 		result = append(result, w.Text("   "))
-	case *m.Folder:
+	case Folder:
 		result = append(result, w.Text(" ▶ "))
 	}
 
-	result = append(result, w.Text(file.Meta().Id.Base.String()).Width(20).Flex(1))
+	result = append(result, w.Text(file.Id.Base.String()).Width(20).Flex(1))
 	result = append(result, w.Text("  "))
-	result = append(result, w.Text(file.Meta().ModTime.Format(time.DateTime)))
+	result = append(result, w.Text(file.ModTime.Format(time.DateTime)))
 	result = append(result, w.Text("  "))
-	result = append(result, w.Text(formatSize(file.Meta().Size)).Width(18))
+	result = append(result, w.Text(formatSize(file.Size)).Width(18))
 	return result
 }
 
-func state(entry m.Entry) w.Widget {
-	hashed := entry.Meta().Size
-	if folder, ok := entry.(*m.Folder); ok {
-		hashed += folder.TotalHashed
-	}
-	if hashed > 0 && hashed < entry.Meta().Size {
-		value := float64(hashed) / float64(entry.Meta().Size)
-		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
-	}
-	switch entry.State() {
+func state(entry Entry) w.Widget {
+	switch entry.State {
 	case m.Hashing, m.Copying:
-		// TODO
+		value := float64(entry.Progress) / float64(entry.Size)
+		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 	case m.Pending:
 		return w.Text("Pending").Width(10)
 	case m.Divergent:
@@ -136,10 +141,8 @@ func state(entry m.Entry) w.Widget {
 	}
 
 	buf := &strings.Builder{}
-	if file, ok := entry.(*m.File); ok {
-		for _, count := range file.Counts {
-			fmt.Fprintf(buf, "%c", countRune(count))
-		}
+	for _, count := range entry.Counts {
+		fmt.Fprintf(buf, "%c", countRune(count))
 	}
 	return w.Text(buf.String()).Width(10)
 }
@@ -211,9 +214,9 @@ func formatSize(size uint64) string {
 	return b.String()
 }
 
-func (a *View) styleFile(file m.Entry, selected bool) w.Style {
+func (a *View) styleFile(file Entry, selected bool) w.Style {
 	bg, flags := byte(17), w.Flags(0)
-	if _, ok := file.(*m.Folder); ok {
+	if file.Kind == Folder {
 		bg = byte(18)
 	}
 	result := w.Style{FG: a.statusColor(file), BG: bg, Flags: flags}
@@ -225,9 +228,9 @@ func (a *View) styleFile(file m.Entry, selected bool) w.Style {
 
 var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
-func (a *View) statusColor(file m.Entry) (color byte) {
-	log.Printf("statusColor: file: %q, color: %s", file.Meta().Id, file.State())
-	switch file.State() {
+func (a *View) statusColor(file Entry) (color byte) {
+	log.Printf("statusColor: file: %q, color: %s", file.Id, file.State)
+	switch file.State {
 	case m.Resolved, m.Hashed:
 		return 195
 	case m.Scanned, m.Hashing:

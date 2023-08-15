@@ -69,7 +69,7 @@ func (a *archive) renameEntry(file *m.File, newName m.Name) {
 
 	delete(a.folders[file.Path].files, file.Base)
 	file.Name = newName
-	file.SetState(m.Resolved)
+	file.State = m.Resolved
 	a.folders[file.Path].files[file.Base] = file
 }
 
@@ -86,11 +86,10 @@ func (a *archive) getFolder(path m.Path) *folder {
 	return pathFolder
 }
 
-func (a *archive) parents(file *m.File, proc func(parent *m.Folder)) {
-	panic("ERROR")
-	// name := file.ParentName()
-	// for name.Base != "." {
-	// 	proc(a.getFolder(name.Path).entry(name.Base).(*m.Folder))
-	// 	name = name.Path.ParentName()
-	// }
-}
+// func (a *archive) parents(file *m.File, proc func(parent *m.Folder)) {
+// 	name := file.ParentName()
+// 	for name.Base != "." {
+// 		proc(a.getFolder(name.Path).entry(name.Base).(*m.Folder))
+// 		name = name.Path.ParentName()
+// 	}
+// }

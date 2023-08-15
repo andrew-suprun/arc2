@@ -6,6 +6,23 @@ import (
 	"time"
 )
 
+type File struct {
+	Meta
+	State
+	Hash
+	Counts   []int
+	Progress uint64
+}
+
+func NewFile(meta Meta, state State) *File {
+	return &File{Meta: meta, State: state}
+}
+
+func (f *File) String() string {
+	return fmt.Sprintf("File{FileId: %q, Size: %d, Hash: %q, State: %s, Hashed: %d}",
+		f.Id, f.Size, f.Hash, f.State, f.Progress)
+}
+
 type Root string
 
 func (root Root) String() string {

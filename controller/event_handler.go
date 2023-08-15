@@ -2,6 +2,7 @@ package controller
 
 import (
 	m "arc/model"
+	v "arc/view"
 	w "arc/widgets"
 	"fmt"
 	"log"
@@ -30,10 +31,8 @@ func (c *controller) handleEvent(event any) {
 	case m.FileHashed:
 		file := c.archives[event.Root].getFolder(event.Path).files[event.Base]
 		file.Hash = event.Hash
-		file.SetState(m.Hashed)
+		file.State = m.Hashed
 		c.byHash[event.Hash] = append(c.byHash[event.Hash], file)
-		log.Println("###", event, file.State())
-		log.Println("###", c.archives[event.Root].getFolder(event.Path).files[event.Base])
 
 	case m.ArchiveHashed:
 		c.archives[event.Root].state = ready
@@ -51,9 +50,9 @@ func (c *controller) handleEvent(event any) {
 		// No Action Needed
 
 	case m.FileCopied:
-		c.archives[event.From.Root].folders[event.From.Path].files[event.From.Base].SetState(m.Resolved)
+		c.archives[event.From.Root].folders[event.From.Path].files[event.From.Base].State = m.Resolved
 		for _, to := range event.To {
-			c.archives[to.Root].folders[to.Path].files[to.Base].SetState(m.Resolved)
+			c.archives[to.Root].folders[to.Path].files[to.Base].State = m.Resolved
 		}
 
 	case m.HashingProgress:
@@ -277,7 +276,7 @@ func (c *controller) handleHashingProgress(event m.HashingProgress) {
 	archive := c.archives[event.Root]
 	folder := archive.folders[event.Path]
 	file := folder.files[event.Base]
-	file.SetState(m.Hashing)
+	file.State = m.Hashing
 	file.Progress = event.Hashed
 }
 
@@ -336,11 +335,11 @@ func (c *controller) resolveAll() {
 	c.resolveFolder(c.archive.currentPath)
 }
 
-func (c *controller) resolveFile(entry m.Entry) {
-	switch entry := entry.(type) {
-	case *m.File:
-		c.resolveRegularFile(entry)
-	case *m.Folder:
+func (c *controller) resolveFile(entry v.Entry) {
+	switch entry.Kind {
+	case v.Regular:
+		c.resolveRegularFile(entry.File)
+	case v.Folder:
 		c.resolveFolder(entry.Path)
 	}
 }
@@ -350,7 +349,7 @@ func (c *controller) resolveFolder(path m.Path) {
 	// for _, entry := range c.archive.folders[path].entries {
 	// 	switch entry := entry.(type) {
 	// 	case *m.File:
-	// 		if entry.State() == m.Divergent && entry.Counts[c.archive.idx] == 1 {
+	// 		if entry.State == m.Divergent && entry.Counts[c.archive.idx] == 1 {
 	// 			c.resolveFile(entry)
 	// 		}
 	// 	case *m.Folder:
@@ -361,7 +360,7 @@ func (c *controller) resolveFolder(path m.Path) {
 
 func (c *controller) setStates(files []*m.File, state m.State) {
 	for _, file := range files {
-		file.SetState(state)
+		file.State = state
 	}
 }
 
@@ -639,25 +638,6 @@ func (f *folder) selectSortColumn(cmd m.SortColumn) {
 		f.sortAscending[f.sortColumn] = !f.sortAscending[f.sortColumn]
 	} else {
 		f.sortColumn = cmd
-	}
-	if f.sortAscending[f.sortColumn] {
-		switch f.sortColumn {
-		case m.SortByName:
-			f.cmpFunc = cmpByAscendingName
-		case m.SortByTime:
-			f.cmpFunc = cmpByAscendingTime
-		case m.SortBySize:
-			f.cmpFunc = cmpByAscendingSize
-		}
-	} else {
-		switch f.sortColumn {
-		case m.SortByName:
-			f.cmpFunc = cmpByDescendingName
-		case m.SortByTime:
-			f.cmpFunc = cmpByDescendingTime
-		case m.SortBySize:
-			f.cmpFunc = cmpByDescendingSize
-		}
 	}
 }
 

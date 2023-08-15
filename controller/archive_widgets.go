@@ -94,7 +94,7 @@ package controller
 // 		value := float64(hashed) / float64(entry.Meta().Size)
 // 		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
 // 	}
-// 	switch entry.State() {
+// 	switch entry.State {
 // 	case m.Pending:
 // 		return w.Text("Pending").Width(10)
 // 	case m.Divergent:
@@ -221,7 +221,7 @@ package controller
 // var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
 // func (a *archive) statusColor(file m.Entry) byte {
-// 	switch file.State() {
+// 	switch file.State {
 // 	case m.Scanned:
 // 		return 248
 // 	case m.Hashing:

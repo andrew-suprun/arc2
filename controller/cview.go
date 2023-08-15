@@ -3,7 +3,6 @@ package controller
 import (
 	m "arc/model"
 	v "arc/view"
-	"slices"
 	"strings"
 )
 
@@ -16,7 +15,7 @@ func (c *controller) view() *v.View {
 		OffsetIdx: currentFolder.offsetIdx,
 	}
 
-	subFolders := map[m.Base]m.Entry{}
+	subFolders := map[m.Base]v.Entry{}
 	for path, folder := range archive.folders {
 		var totalSize, progress uint64
 		switch archive.state {
@@ -26,7 +25,7 @@ func (c *controller) view() *v.View {
 			}
 			for _, file := range folder.files {
 				totalSize += file.Size
-				switch file.State() {
+				switch file.State {
 				case m.Hashing:
 					progress += file.Progress
 				case m.Hashed:
@@ -39,7 +38,7 @@ func (c *controller) view() *v.View {
 			}
 			for _, file := range folder.files {
 				totalSize += file.Size
-				switch file.State() {
+				switch file.State {
 				case m.Pending:
 					totalSize += file.Size
 					progress += file.Size
@@ -63,7 +62,7 @@ func (c *controller) view() *v.View {
 
 	currentFolder.entries = len(view.Entries)
 
-	slices.SortFunc(view.Entries, currentFolder.cmpFunc)
+	view.Sort(currentFolder.sortColumn, currentFolder.sortAscending[currentFolder.sortColumn])
 
 	if archive.state == scanning || len(view.Entries) == 0 {
 		return view
@@ -71,7 +70,7 @@ func (c *controller) view() *v.View {
 
 	validSelected := false
 	for idx, entry := range view.Entries {
-		if currentFolder.selectedBase == entry.Meta().Base {
+		if currentFolder.selectedBase == entry.Base {
 			currentFolder.selectedIdx = idx
 			validSelected = true
 			break
@@ -85,7 +84,7 @@ func (c *controller) view() *v.View {
 			currentFolder.selectedIdx = 0
 		}
 
-		currentFolder.selectedBase = view.Entries[currentFolder.selectedIdx].Meta().Base
+		currentFolder.selectedBase = view.Entries[currentFolder.selectedIdx].Base
 	}
 	view.SelectedBase = currentFolder.selectedBase
 
@@ -94,11 +93,11 @@ func (c *controller) view() *v.View {
 
 func (a *archive) populateFiles(view *v.View, folder *folder) {
 	for _, file := range folder.files {
-		view.Entries = append(view.Entries, file)
+		view.Entries = append(view.Entries, v.Entry{File: file, Kind: v.Regular})
 	}
 }
 
-func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map[m.Base]m.Entry) {
+func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map[m.Base]v.Entry) {
 	var currentPathParts []string
 	if a.currentPath != "" {
 		currentPathParts = strings.Split(a.currentPath.String(), "/")
@@ -107,19 +106,21 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 	base := m.Base(folderPathParts[len(currentPathParts)])
 	entry, ok := subFolders[base]
 	if !ok {
-		entry = m.NewFolder(
-			m.Meta{
-				Id: m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: base}},
+		entry = v.Entry{
+			File: &m.File{
+				Meta: m.Meta{
+					Id: m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: base}},
+				},
+				State: m.Scanned,
 			},
-			m.Scanned,
-		)
+		}
 		subFolders[base] = entry
 	}
 	for _, file := range folder.files {
-		entry.Meta().Size += file.Size
-		if entry.Meta().ModTime.Before(file.ModTime) {
-			entry.Meta().ModTime = file.ModTime
+		entry.Size += file.Size
+		if entry.ModTime.Before(file.ModTime) {
+			entry.ModTime = file.ModTime
 		}
-		entry.SetState(entry.State().Merge(file.State()))
+		entry.State = entry.State.Merge(file.State)
 	}
 }
