@@ -4,10 +4,12 @@ import (
 	m "arc/model"
 	v "arc/view"
 	w "arc/widgets"
+	"cmp"
 	"fmt"
 	"log"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -174,34 +176,32 @@ func (c *controller) handleEvent(event any) {
 }
 
 func (c *controller) tab() {
-	panic("IMPLEMENT c.tab()")
-	// selected := c.archive.currFolder().selected()
-	// file, ok := selected.(*File)
-	// if !ok {
-	// 	return
-	// }
+	selected := c.selectedFile()
+	if selected == nil {
+		return
+	}
 
-	// sameHash := c.byHash[file.Hash]
+	sameHash := c.byHash[selected.Hash]
 
-	// slices.SortFunc(sameHash, func(a, b *File) int {
-	// 	result := cmp.Compare(c.archives[a.Root].idx, c.archives[b.Root].idx)
-	// 	if result != 0 {
-	// 		return result
-	// 	}
-	// 	result = cmp.Compare(a.Path, b.Path)
-	// 	if result != 0 {
-	// 		return result
-	// 	}
-	// 	return cmp.Compare(a.Base, b.Base)
-	// })
+	slices.SortFunc(sameHash, func(a, b *file) int {
+		result := cmp.Compare(c.archives[a.Root].idx, c.archives[b.Root].idx)
+		if result != 0 {
+			return result
+		}
+		result = cmp.Compare(a.Path, b.Path)
+		if result != 0 {
+			return result
+		}
+		return cmp.Compare(a.Base, b.Base)
+	})
 
-	// idx := slices.Index(sameHash, file)
-	// var newSelected m.Entry = sameHash[(idx+1)%len(sameHash)]
-	// c.archive = c.archives[newSelected.Meta().Root]
-	// c.archive.currentPath = newSelected.Meta().Path
-	// folder := c.archive.currFolder()
-	// folder.selectedIdx = slices.Index(folder.entries, newSelected)
-	// folder.makeSelectedVisible(c.archive.fileTreeLines)
+	idx := slices.Index(sameHash, selected)
+	var newSelected = sameHash[(idx+1)%len(sameHash)]
+	c.currRoot = newSelected.Root
+	c.currArchive().currentPath = newSelected.Path
+	folder := c.currFolder()
+	folder.selectedBase = newSelected.Base
+	folder.makeSelectedVisible(c.currArchive().fileTreeLines)
 }
 
 func (c *controller) String() string {

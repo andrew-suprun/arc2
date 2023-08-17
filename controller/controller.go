@@ -169,3 +169,8 @@ func (c *controller) currFolder() *folder {
 func (c *controller) file(id m.Id) *file {
 	return c.folder(id).files[id.Base]
 }
+
+func (c *controller) selectedFile() *file {
+	folder := c.currFolder()
+	return folder.files[folder.selectedBase]
+}
