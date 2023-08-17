@@ -4,6 +4,7 @@ import (
 	m "arc/model"
 	w "arc/widgets"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,7 +13,7 @@ import (
 type View struct {
 	Archive       m.Root
 	Path          m.Path
-	Entries       []Entry
+	Entries       []*Entry
 	SelectedBase  m.Base
 	FileTreeLines int
 	OffsetIdx     int
@@ -75,6 +76,8 @@ func (a *View) title() w.Widget {
 }
 
 func (v *View) folderWidget() w.Widget {
+	log.Printf("view: archive: >>> %q", v.Archive)
+	defer log.Printf("view: archive: <<< %q", v.Archive)
 	return w.Column(colConstraint,
 		v.breadcrumbs(),
 		w.Styled(styleArchiveHeader,
@@ -95,13 +98,14 @@ func (v *View) folderWidget() w.Widget {
 					v.OffsetIdx = 0
 				}
 				rows := []w.Widget{}
-				for i, file := range v.Entries[v.OffsetIdx:] {
+				for i, entry := range v.Entries[v.OffsetIdx:] {
+					log.Printf("    file: %q, state: %s", entry.Id, entry.State)
 					if i >= size.Height {
 						break
 					}
-					rows = append(rows, w.Styled(v.styleFile(file, v.SelectedBase == file.Base),
-						w.MouseTarget(m.SelectFile(file.Id), w.Row(rowConstraint,
-							v.fileRow(file)...,
+					rows = append(rows, w.Styled(v.styleFile(entry, v.SelectedBase == entry.Base),
+						w.MouseTarget(m.SelectFile(entry.Id), w.Row(rowConstraint,
+							v.fileRow(entry)...,
 						)),
 					))
 				}
@@ -112,25 +116,25 @@ func (v *View) folderWidget() w.Widget {
 	)
 }
 
-func (a *View) fileRow(file Entry) []w.Widget {
-	result := []w.Widget{w.Text(" "), state(file)}
+func (a *View) fileRow(entry *Entry) []w.Widget {
+	result := []w.Widget{w.Text(" "), state(entry)}
 
-	switch file.Kind {
+	switch entry.Kind {
 	case Regular:
 		result = append(result, w.Text("   "))
 	case Folder:
 		result = append(result, w.Text(" ▶ "))
 	}
 
-	result = append(result, w.Text(file.Id.Base.String()).Width(20).Flex(1))
+	result = append(result, w.Text(entry.Id.Base.String()).Width(20).Flex(1))
 	result = append(result, w.Text("  "))
-	result = append(result, w.Text(file.ModTime.Format(time.DateTime)))
+	result = append(result, w.Text(entry.ModTime.Format(time.DateTime)))
 	result = append(result, w.Text("  "))
-	result = append(result, w.Text(formatSize(file.Size)).Width(18))
+	result = append(result, w.Text(formatSize(entry.Size)).Width(18))
 	return result
 }
 
-func state(entry Entry) w.Widget {
+func state(entry *Entry) w.Widget {
 	switch entry.State {
 	case m.Hashing, m.Copying:
 		value := float64(entry.ProgressDone) / float64(entry.ProgressSize)
@@ -221,12 +225,12 @@ func formatSize(size uint64) string {
 	return b.String()
 }
 
-func (a *View) styleFile(file Entry, selected bool) w.Style {
+func (a *View) styleFile(entry *Entry, selected bool) w.Style {
 	bg, flags := byte(17), w.Flags(0)
-	if file.Kind == Folder {
+	if entry.Kind == Folder {
 		bg = byte(18)
 	}
-	result := w.Style{FG: a.statusColor(file), BG: bg, Flags: flags}
+	result := w.Style{FG: a.statusColor(entry), BG: bg, Flags: flags}
 	if selected {
 		result.Flags |= w.Reverse
 	}
@@ -235,11 +239,11 @@ func (a *View) styleFile(file Entry, selected bool) w.Style {
 
 var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
-func (a *View) statusColor(file Entry) (color byte) {
-	switch file.State {
+func (a *View) statusColor(entry *Entry) (color byte) {
+	switch entry.State {
 	case m.Scanned:
 		return 248
-	case m.Resolved, m.Hashed, m.Copied, m.Hashing, m.Copying:
+	case m.Resolved, m.Hashed, m.Hashing, m.Copying:
 		return 195
 	case m.Pending:
 		return 214
@@ -267,7 +271,7 @@ func (v *View) String() string {
 	}
 	fmt.Fprintf(buf, "  Entries:\n")
 	for i := range v.Entries {
-		fmt.Fprintf(buf, "    %s\n", &v.Entries[i])
+		fmt.Fprintf(buf, "    %s\n", v.Entries[i])
 	}
 
 	return buf.String()

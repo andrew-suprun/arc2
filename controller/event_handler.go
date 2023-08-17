@@ -47,12 +47,13 @@ func (c *controller) handleEvent(event any) {
 		// No Action Needed
 
 	case m.FileCopied:
-		c.file(event.From).State = m.Copied
+		c.file(event.From).State = m.Resolved
 
 	case m.HashingProgress:
 		file := c.file(event.Id)
 		file.State = m.Hashing
 		file.progressDone = event.Hashed
+		log.Printf("hashing: file: %q, progress: %d, state: %s", event.Id, event.Hashed, file.State)
 
 	case m.CopyingProgress:
 		file := c.file(event.Id)

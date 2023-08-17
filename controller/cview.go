@@ -3,6 +3,7 @@ package controller
 import (
 	m "arc/model"
 	v "arc/view"
+	"log"
 	"strings"
 )
 
@@ -15,7 +16,7 @@ func (c *controller) view() *v.View {
 		OffsetIdx: currentFolder.offsetIdx,
 	}
 
-	subFolders := map[m.Base]v.Entry{}
+	subFolders := map[m.Base]*v.Entry{}
 	var totalSize, progress uint64
 	for path, folder := range archive.folders {
 		switch archive.state {
@@ -101,7 +102,7 @@ func (c *controller) view() *v.View {
 
 func (a *archive) populateFiles(view *v.View, folder *folder) {
 	for _, file := range folder.files {
-		view.Entries = append(view.Entries, v.Entry{
+		view.Entries = append(view.Entries, &v.Entry{
 			Meta:         file.Meta,
 			Kind:         v.Regular,
 			State:        file.State,
@@ -111,16 +112,17 @@ func (a *archive) populateFiles(view *v.View, folder *folder) {
 	}
 }
 
-func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map[m.Base]v.Entry) {
+func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map[m.Base]*v.Entry) {
 	var currentPathParts []string
 	if a.currentPath != "" {
 		currentPathParts = strings.Split(a.currentPath.String(), "/")
 	}
 	folderPathParts := strings.Split(folder.path.String(), "/")
 	base := m.Base(folderPathParts[len(currentPathParts)])
+	log.Printf("  sub: >>> path: %q, base: %q", folder.path, base)
 	entry, ok := subFolders[base]
 	if !ok {
-		entry = v.Entry{
+		entry = &v.Entry{
 			Meta: m.Meta{
 				Id: m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: base}},
 			},
@@ -137,5 +139,7 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 		entry.State = entry.State.Merge(file.State)
 		entry.ProgressSize += file.progressSize
 		entry.ProgressDone += file.progressDone
+		log.Printf("    file: %q: %d - %d (%s)", file.Id, file.progressSize, file.progressDone, file.State)
 	}
+	log.Printf("  sub: <<< %q: %d - %d (%s)", entry.Base, entry.ProgressSize, entry.ProgressDone, entry.State)
 }

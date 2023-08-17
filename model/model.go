@@ -79,7 +79,6 @@ const (
 	Scanned
 	Hashed
 	Hashing
-	Copied
 	Pending
 	Copying
 	Divergent
@@ -99,8 +98,6 @@ func (s State) String() string {
 		return "Pending"
 	case Copying:
 		return "Copying"
-	case Copied:
-		return "Copied"
 	case Divergent:
 		return "Divergent"
 	}
