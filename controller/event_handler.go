@@ -73,9 +73,9 @@ func (c *controller) handleEvent(event any) {
 	case m.Enter:
 		archive := c.currArchive()
 		folder := c.currFolder()
-		base := folder.selectedBase
-		if folder.files[base] == nil {
-			archive.currentPath = m.Path(filepath.Join(archive.currentPath.String(), base.String()))
+		id := folder.selectedId
+		if folder.files[id.Base] == nil {
+			archive.currentPath = m.Path(filepath.Join(archive.currentPath.String(), id.Base.String()))
 		}
 
 	case m.Exit:
@@ -102,12 +102,12 @@ func (c *controller) handleEvent(event any) {
 
 	case m.SelectFirst:
 		folder := c.currFolder()
-		folder.selectedBase = ""
+		folder.selectedId = m.Id{}
 		folder.selectedIdx = 0
 
 	case m.SelectLast:
 		folder := c.currFolder()
-		folder.selectedBase = ""
+		folder.selectedId = m.Id{}
 		folder.selectedIdx = folder.entries - 1
 
 	case m.Scroll:
@@ -200,7 +200,7 @@ func (c *controller) tab() {
 	c.currRoot = newSelected.Root
 	c.currArchive().currentPath = newSelected.Path
 	folder := c.currFolder()
-	folder.selectedBase = newSelected.Base
+	folder.selectedId = newSelected.Id
 	folder.makeSelectedVisible(c.currArchive().fileTreeLines)
 }
 
@@ -502,7 +502,7 @@ func stripIdx(name string) string {
 }
 
 func (f *folder) moveSelection(lines int) {
-	f.selectedBase = ""
+	f.selectedId = m.Id{}
 	f.selectedIdx += lines
 
 	if f.selectedIdx >= f.entries {
@@ -525,25 +525,19 @@ func (f *folder) moveOffset(lines, fileTreeLines int) {
 }
 
 func (c *controller) reveal() {
-	archive := c.currArchive()
-	folder := c.currFolder()
-	id := m.Id{Root: c.currRoot, Name: m.Name{Path: archive.currentPath, Base: folder.selectedBase}}
-	exec.Command("open", "-R", id.String()).Start()
+	exec.Command("open", "-R", c.selectedId().String()).Start()
 }
 
 func (c *controller) open() {
-	archive := c.currArchive()
-	folder := c.currFolder()
-	id := m.Id{Root: c.currRoot, Name: m.Name{Path: archive.currentPath, Base: folder.selectedBase}}
-	exec.Command("open", id.String()).Start()
+	exec.Command("open", c.selectedId().String()).Start()
 }
 
 func (c *controller) selectFile(cmd m.SelectFile) {
 	folder := c.currFolder()
-	if folder.selectedBase == cmd.Base && time.Since(folder.lastMouseEventTime).Seconds() < 0.5 {
+	if folder.selectedId == m.Id(cmd) && time.Since(folder.lastMouseEventTime).Seconds() < 0.5 {
 		c.open()
 	} else {
-		folder.selectedBase = cmd.Base
+		folder.selectedId = m.Id(cmd)
 	}
 	folder.lastMouseEventTime = time.Now()
 }

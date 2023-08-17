@@ -79,7 +79,7 @@ func (c *controller) view() *v.View {
 
 	validSelected := false
 	for idx, entry := range view.Entries {
-		if currentFolder.selectedBase == entry.Base {
+		if currentFolder.selectedId == entry.Id {
 			currentFolder.selectedIdx = idx
 			validSelected = true
 			break
@@ -93,9 +93,9 @@ func (c *controller) view() *v.View {
 			currentFolder.selectedIdx = 0
 		}
 
-		currentFolder.selectedBase = view.Entries[currentFolder.selectedIdx].Base
+		currentFolder.selectedId = view.Entries[currentFolder.selectedIdx].Id
 	}
-	view.SelectedBase = currentFolder.selectedBase
+	view.SelectedId = currentFolder.selectedId
 
 	return view
 }

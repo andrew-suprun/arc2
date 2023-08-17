@@ -33,7 +33,7 @@ type archive struct {
 type folder struct {
 	path               m.Path
 	files              map[m.Base]*file
-	selectedBase       m.Base
+	selectedId         m.Id
 	entries            int
 	selectedIdx        int
 	offsetIdx          int
@@ -172,5 +172,9 @@ func (c *controller) file(id m.Id) *file {
 
 func (c *controller) selectedFile() *file {
 	folder := c.currFolder()
-	return folder.files[folder.selectedBase]
+	return folder.files[folder.selectedId.Base]
+}
+
+func (c *controller) selectedId() m.Id {
+	return c.currFolder().selectedId
 }

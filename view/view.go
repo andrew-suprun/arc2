@@ -14,7 +14,7 @@ type View struct {
 	Archive       m.Root
 	Path          m.Path
 	Entries       []*Entry
-	SelectedBase  m.Base
+	SelectedId    m.Id
 	FileTreeLines int
 	OffsetIdx     int
 	Progress      *Progress
@@ -103,7 +103,7 @@ func (v *View) folderWidget() w.Widget {
 					if i >= size.Height {
 						break
 					}
-					rows = append(rows, w.Styled(v.styleFile(entry, v.SelectedBase == entry.Base),
+					rows = append(rows, w.Styled(v.styleFile(entry, v.SelectedId == entry.Id),
 						w.MouseTarget(m.SelectFile(entry.Id), w.Row(rowConstraint,
 							v.fileRow(entry)...,
 						)),
@@ -258,7 +258,7 @@ func (v *View) String() string {
 	fmt.Fprintf(buf, "View:\n")
 	fmt.Fprintf(buf, "  Archive: %q\n", v.Archive)
 	fmt.Fprintf(buf, "  Path: %q\n", v.Path)
-	fmt.Fprintf(buf, "  SelectedBase: %q\n", v.SelectedBase)
+	fmt.Fprintf(buf, "  SelectedId: %q\n", v.SelectedId)
 	fmt.Fprintf(buf, "  OffsetIdx: %d\n", v.OffsetIdx)
 	fmt.Fprintf(buf, "  FileTreeLines: %d\n", v.FileTreeLines)
 	fmt.Fprintf(buf, "  SortColumn: %q\n", v.SortColumn)
