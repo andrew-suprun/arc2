@@ -3,17 +3,14 @@ package controller
 import (
 	m "arc/model"
 	v "arc/view"
-	"log"
 	"strings"
 )
 
 func (c *controller) view() *v.View {
 	archive := c.currArchive()
-	currentFolder := archive.currFolder()
 	view := &v.View{
-		Archive:   archive.root,
-		Path:      archive.currentPath,
-		OffsetIdx: currentFolder.offsetIdx,
+		Archive: archive.root,
+		Path:    archive.currentPath,
 	}
 
 	subFolders := map[m.Base]*v.Entry{}
@@ -69,9 +66,8 @@ func (c *controller) view() *v.View {
 		view.Entries = append(view.Entries, subFolder)
 	}
 
-	currentFolder.entries = len(view.Entries)
-
-	view.Sort(currentFolder.sortColumn, currentFolder.sortAscending[currentFolder.sortColumn])
+	folder := archive.currFolder()
+	view.Sort(folder.sortColumn, folder.sortAscending[folder.sortColumn])
 
 	if archive.state == scanning || len(view.Entries) == 0 {
 		return view
@@ -79,23 +75,41 @@ func (c *controller) view() *v.View {
 
 	validSelected := false
 	for idx, entry := range view.Entries {
-		if currentFolder.selectedId == entry.Id {
-			currentFolder.selectedIdx = idx
+		if folder.selectedId == entry.Id {
+			folder.selectedIdx = idx
 			validSelected = true
 			break
 		}
 	}
 	if !validSelected {
-		if currentFolder.selectedIdx >= len(view.Entries) {
-			currentFolder.selectedIdx = len(view.Entries)
+		if folder.selectedIdx >= len(view.Entries) {
+			folder.selectedIdx = len(view.Entries) - 1
 		}
-		if currentFolder.selectedIdx < 0 {
-			currentFolder.selectedIdx = 0
+		if folder.selectedIdx < 0 {
+			folder.selectedIdx = 0
 		}
 
-		currentFolder.selectedId = view.Entries[currentFolder.selectedIdx].Id
+		folder.selectedId = view.Entries[folder.selectedIdx].Id
 	}
-	view.SelectedId = currentFolder.selectedId
+	view.SelectedId = folder.selectedId
+
+	if folder.selectedIdx >= len(view.Entries) {
+		folder.selectedIdx = len(view.Entries) - 1
+	}
+	if folder.selectedIdx < 0 {
+		folder.selectedIdx = 0
+	}
+
+	if c.makeSelectedVisible {
+		if folder.offsetIdx > folder.selectedIdx {
+			folder.offsetIdx = folder.selectedIdx
+		}
+		if folder.offsetIdx < folder.selectedIdx+1-c.fileTreeLines {
+			folder.offsetIdx = folder.selectedIdx + 1 - c.fileTreeLines
+		}
+		c.makeSelectedVisible = false
+	}
+	view.OffsetIdx = folder.offsetIdx
 
 	return view
 }
@@ -119,7 +133,6 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 	}
 	folderPathParts := strings.Split(folder.path.String(), "/")
 	base := m.Base(folderPathParts[len(currentPathParts)])
-	log.Printf("  sub: >>> path: %q, base: %q", folder.path, base)
 	entry, ok := subFolders[base]
 	if !ok {
 		entry = &v.Entry{
@@ -139,7 +152,5 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 		entry.State = entry.State.Merge(file.State)
 		entry.ProgressSize += file.progressSize
 		entry.ProgressDone += file.progressDone
-		log.Printf("    file: %q: %d - %d (%s)", file.Id, file.progressSize, file.progressDone, file.State)
 	}
-	log.Printf("  sub: <<< %q: %d - %d (%s)", entry.Base, entry.ProgressSize, entry.ProgressDone, entry.State)
 }

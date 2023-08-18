@@ -16,5 +16,5 @@ func (c *controller) renameFile(meta *file, newName m.Name) {
 	delete(c.archives[meta.Root].folders[meta.Path].files, meta.Base)
 	meta.Name = newName
 	meta.State = m.Resolved
-	c.archives[meta.Root].folders[meta.Path].files[meta.Base] = meta
+	c.archives[meta.Root].getFolder(meta.Path).files[meta.Base] = meta
 }

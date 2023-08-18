@@ -4,7 +4,6 @@ import (
 	m "arc/model"
 	w "arc/widgets"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -76,8 +75,6 @@ func (a *View) title() w.Widget {
 }
 
 func (v *View) folderWidget() w.Widget {
-	log.Printf("view: archive: >>> %q", v.Archive)
-	defer log.Printf("view: archive: <<< %q", v.Archive)
 	return w.Column(colConstraint,
 		v.breadcrumbs(),
 		w.Styled(styleArchiveHeader,
@@ -99,7 +96,6 @@ func (v *View) folderWidget() w.Widget {
 				}
 				rows := []w.Widget{}
 				for i, entry := range v.Entries[v.OffsetIdx:] {
-					log.Printf("    file: %q, state: %s", entry.Id, entry.State)
 					if i >= size.Height {
 						break
 					}

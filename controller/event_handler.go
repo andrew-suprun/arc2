@@ -2,11 +2,11 @@ package controller
 
 import (
 	m "arc/model"
-	v "arc/view"
 	w "arc/widgets"
 	"cmp"
 	"fmt"
 	"log"
+	"math"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -97,8 +97,9 @@ func (c *controller) handleEvent(event any) {
 
 	case m.MoveSelection:
 		folder := c.currFolder()
-		folder.moveSelection(event.Lines)
-		folder.makeSelectedVisible(c.currArchive().fileTreeLines)
+		folder.selectedIdx += event.Lines
+		folder.selectedId = m.Id{}
+		c.makeSelectedVisible = true
 
 	case m.SelectFirst:
 		folder := c.currFolder()
@@ -108,15 +109,21 @@ func (c *controller) handleEvent(event any) {
 	case m.SelectLast:
 		folder := c.currFolder()
 		folder.selectedId = m.Id{}
-		folder.selectedIdx = folder.entries - 1
+		folder.selectedIdx = math.MaxInt
 
 	case m.Scroll:
-		c.currFolder().moveOffset(event.Lines, c.currArchive().fileTreeLines)
+		c.currFolder().offsetIdx += event.Lines
 
 	case m.MouseTarget:
 		switch cmd := event.Command.(type) {
 		case m.SelectFile:
-			c.selectFile(cmd)
+			folder := c.currFolder()
+			if folder.selectedId == m.Id(cmd) && time.Since(folder.lastMouseEventTime).Seconds() < 0.5 {
+				c.open()
+			} else {
+				folder.selectedId = m.Id(cmd)
+			}
+			folder.lastMouseEventTime = time.Now()
 
 		case m.SelectFolder:
 			c.currArchive().currentPath = m.Path(cmd)
@@ -124,24 +131,26 @@ func (c *controller) handleEvent(event any) {
 		case m.SortColumn:
 			folder := c.currFolder()
 			folder.selectSortColumn(cmd)
-			folder.makeSelectedVisible(c.currArchive().fileTreeLines)
+			c.makeSelectedVisible = true
 		}
 
 	case m.PgUp:
 		archive := c.currArchive()
-		folder := c.currFolder()
-		folder.moveOffset(-archive.fileTreeLines, archive.fileTreeLines)
-		folder.moveSelection(-archive.fileTreeLines)
+		folder := archive.currFolder()
+		folder.offsetIdx -= c.fileTreeLines
+		folder.selectedIdx -= c.fileTreeLines
+		folder.selectedId = m.Id{}
 
 	case m.PgDn:
 		archive := c.currArchive()
-		folder := c.currFolder()
-		folder.moveOffset(archive.fileTreeLines, archive.fileTreeLines)
-		folder.moveSelection(archive.fileTreeLines)
+		folder := archive.currFolder()
+		folder.offsetIdx += c.fileTreeLines
+		folder.selectedIdx += c.fileTreeLines
+		folder.selectedId = m.Id{}
 
 	case m.Tab:
 		c.tab()
-		c.currFolder().makeSelectedVisible(c.currArchive().fileTreeLines)
+		c.makeSelectedVisible = true
 
 	case m.ResolveOne:
 		c.resolveSelected()
@@ -201,7 +210,7 @@ func (c *controller) tab() {
 	c.currArchive().currentPath = newSelected.Path
 	folder := c.currFolder()
 	folder.selectedId = newSelected.Id
-	folder.makeSelectedVisible(c.currArchive().fileTreeLines)
+	c.makeSelectedVisible = true
 }
 
 func (c *controller) String() string {
@@ -248,64 +257,36 @@ func (c *controller) analyzeDiscrepancy(hash m.Hash) {
 }
 
 func (c *controller) resolveSelected() {
-	panic("IMPLEMENT c.resolveSelected()")
-	// c.resolveFile(c.archive.currFolder().selectedEntry)
+	c.resolveFile(c.selectedId())
 }
 
 func (c *controller) resolveAll() {
 	c.resolveFolder(c.currArchive().currentPath)
 }
 
-func (c *controller) resolveFile(entry v.Entry) {
-	// TODO
-	// switch entry.Kind {
-	// case v.Regular:
-	// 	c.resolveRegularFile(entry.File)
-	// case v.Folder:
-	// 	c.resolveFolder(entry.Path)
-	// }
-}
-
-func (c *controller) resolveFolder(path m.Path) {
-	panic("IMPLEMENT c.resolveFolder()")
-	// for _, entry := range c.archive.folders[path].entries {
-	// 	switch entry := entry.(type) {
-	// 	case *File:
-	// 		if entry.State == m.Divergent && entry.Counts[c.archive.idx] == 1 {
-	// 			c.resolveFile(entry)
-	// 		}
-	// 	case *m.Folder:
-	// 		c.resolveFolder(m.Path(entry.Name.String()))
-	// 	}
-	// }
-}
-
-func (c *controller) setStates(files []*file, state m.State) {
-	for _, file := range files {
-		file.State = state
+func (c *controller) resolveFile(id m.Id) {
+	file := c.file(id)
+	if file != nil {
+		c.resolveRegularFile(file)
+	} else {
+		c.resolveFolder(id.Path)
 	}
 }
 
-func (c *controller) setCounts(files []*file, state m.State) {
-	if state != m.Divergent {
-		for _, file := range files {
-			file.Counts = nil
-		}
-		return
-	}
-
-	counts := make([]int, len(c.roots))
-
-	for _, file := range files {
-		for i, root := range c.roots {
-			if root == file.Root {
-				counts[i]++
+func (c *controller) resolveFolder(folderPath m.Path) {
+	archive := c.currArchive()
+	archIdx := archive.idx
+	for path, folder := range archive.folders {
+		if path == folderPath {
+			for _, file := range folder.files {
+				if file.State == m.Divergent && file.Counts[archIdx] == 1 {
+					c.resolveRegularFile(file)
+				}
 			}
-		}
-	}
 
-	for _, file := range files {
-		file.Counts = counts
+		} else if strings.HasPrefix(path.String(), folderPath.String()) {
+			c.resolveFolder(path)
+		}
 	}
 }
 
@@ -434,6 +415,35 @@ func (c *controller) resolveRegularFile(meta *file) {
 	// }
 }
 
+func (c *controller) setStates(files []*file, state m.State) {
+	for _, file := range files {
+		file.State = state
+	}
+}
+
+func (c *controller) setCounts(files []*file, state m.State) {
+	if state != m.Divergent {
+		for _, file := range files {
+			file.Counts = nil
+		}
+		return
+	}
+
+	counts := make([]int, len(c.roots))
+
+	for _, file := range files {
+		for i, root := range c.roots {
+			if root == file.Root {
+				counts[i]++
+			}
+		}
+	}
+
+	for _, file := range files {
+		file.Counts = counts
+	}
+}
+
 func (c *controller) clearName(meta *file) {
 	if c.nameCollidesWithPath(meta.Name) {
 		var newName m.Name
@@ -501,29 +511,6 @@ func stripIdx(name string) string {
 	return name
 }
 
-func (f *folder) moveSelection(lines int) {
-	f.selectedId = m.Id{}
-	f.selectedIdx += lines
-
-	if f.selectedIdx >= f.entries {
-		f.selectedIdx = f.entries - 1
-	}
-	if f.selectedIdx < 0 {
-		f.selectedIdx = 0
-	}
-}
-
-func (f *folder) moveOffset(lines, fileTreeLines int) {
-	f.offsetIdx += lines
-
-	if f.offsetIdx >= f.entries+1-fileTreeLines {
-		f.offsetIdx = f.entries - fileTreeLines
-	}
-	if f.offsetIdx < 0 {
-		f.offsetIdx = 0
-	}
-}
-
 func (c *controller) reveal() {
 	exec.Command("open", "-R", c.selectedId().String()).Start()
 }
@@ -532,29 +519,10 @@ func (c *controller) open() {
 	exec.Command("open", c.selectedId().String()).Start()
 }
 
-func (c *controller) selectFile(cmd m.SelectFile) {
-	folder := c.currFolder()
-	if folder.selectedId == m.Id(cmd) && time.Since(folder.lastMouseEventTime).Seconds() < 0.5 {
-		c.open()
-	} else {
-		folder.selectedId = m.Id(cmd)
-	}
-	folder.lastMouseEventTime = time.Now()
-}
-
 func (f *folder) selectSortColumn(cmd m.SortColumn) {
 	if cmd == f.sortColumn {
 		f.sortAscending[f.sortColumn] = !f.sortAscending[f.sortColumn]
 	} else {
 		f.sortColumn = cmd
-	}
-}
-
-func (f *folder) makeSelectedVisible(fileTreeLines int) {
-	if f.offsetIdx > f.selectedIdx {
-		f.offsetIdx = f.selectedIdx
-	}
-	if f.offsetIdx < f.selectedIdx+1-fileTreeLines {
-		f.offsetIdx = f.selectedIdx + 1 - fileTreeLines
 	}
 }
