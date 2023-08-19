@@ -8,9 +8,12 @@ import (
 
 func (c *controller) view() *v.View {
 	archive := c.currArchive()
+	folder := archive.currFolder()
 	view := &v.View{
-		Archive: archive.root,
-		Path:    archive.currentPath,
+		Archive:       archive.root,
+		Path:          archive.currentPath,
+		SortColumn:    folder.sortColumn,
+		SortAscending: folder.sortAscending[folder.sortColumn],
 	}
 
 	subFolders := map[m.Base]*v.Entry{}
@@ -66,7 +69,6 @@ func (c *controller) view() *v.View {
 		view.Entries = append(view.Entries, subFolder)
 	}
 
-	folder := archive.currFolder()
 	view.Sort(folder.sortColumn, folder.sortAscending[folder.sortColumn])
 
 	if archive.state == scanning || len(view.Entries) == 0 {

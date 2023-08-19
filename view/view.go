@@ -88,12 +88,6 @@ func (v *View) folderWidget() w.Widget {
 		w.Scroll(m.Scroll{}, w.Constraint{Size: w.Size{Width: 0, Height: 0}, Flex: w.Flex{X: 1, Y: 1}},
 			func(size w.Size) w.Widget {
 				v.FileTreeLines = size.Height
-				if v.OffsetIdx > len(v.Entries)+1-size.Height {
-					v.OffsetIdx = len(v.Entries) + 1 - size.Height
-				}
-				if v.OffsetIdx < 0 {
-					v.OffsetIdx = 0
-				}
 				rows := []w.Widget{}
 				for i, entry := range v.Entries[v.OffsetIdx:] {
 					if i >= size.Height {

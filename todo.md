@@ -1,5 +1,7 @@
+* move from Streams to channales
+* wrap slices into an Array
+* ??? turn methods into functions, maybe
 * switch log to slog
-* ??? make File an interface, maybe
 * fix renaming folder
 * implement delete event
 * show copy file progress bar
