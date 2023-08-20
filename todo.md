@@ -16,3 +16,7 @@
 * add descriptions to ScanErrors
 * ??? Separate Scroll into Scroll and Sized
 * ??? store hashes as hex encoded strings
+Clock face
+⏲⏲⏲⏲⏲⏲⏲⏲⏲
+⏱⏱⏱⏱⏱⏱⏱⏱⏱
+🕓🕓🕓🕓🕓🕓🕓🕓🕓🕓🕓🕓🕓🕓🕓

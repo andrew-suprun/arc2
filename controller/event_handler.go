@@ -291,6 +291,22 @@ func (c *controller) resolveFolder(folderPath m.Path) {
 }
 
 func (c *controller) resolveRegularFile(meta *file) {
+	childPath := meta.Id.ChildPath().String()
+	for _, archive := range c.archives {
+		if archive.root == meta.Root {
+			continue
+		}
+		folderNameConflict := false
+		for _, folder := range archive.folders {
+			if strings.HasPrefix(folder.path.String(), childPath) {
+				folderNameConflict = true
+				break
+			}
+		}
+		if folderNameConflict {
+			c.renameFolder(archive, meta.Path, meta.Base)
+		}
+	}
 	panic("IMPLEMENT: c.resolveRegularFile()")
 	// c.clearName(file)
 
@@ -446,16 +462,7 @@ func (c *controller) setCounts(files []*file, state m.State) {
 
 func (c *controller) clearName(meta *file) {
 	if c.nameCollidesWithPath(meta.Name) {
-		var newName m.Name
-		for i := 1; ; i++ {
-			newName = newSuffix(meta.Name, i)
-			if !c.nameCollidesWithPath(newName) {
-				break
-			}
-		}
-		if newName != meta.Name {
-			c.renameFile(meta, newName)
-		}
+		c.renameFile(meta)
 	}
 }
 
@@ -467,48 +474,6 @@ func (c *controller) nameCollidesWithPath(name m.Name) bool {
 		}
 	}
 	return false
-}
-
-func newSuffix(name m.Name, idx int) m.Name {
-	parts := strings.Split(name.Base.String(), ".")
-
-	var part string
-	if len(parts) == 1 {
-		part = stripIdx(parts[0])
-	} else {
-		part = stripIdx(parts[len(parts)-2])
-	}
-	var newBase m.Base
-	if len(parts) == 1 {
-		newBase = m.Base(fmt.Sprintf("%s%c%d", part, '`', idx))
-	} else {
-		parts[len(parts)-2] = fmt.Sprintf("%s%c%d", part, '`', idx)
-		newBase = m.Base(strings.Join(parts, "."))
-	}
-	return m.Name{Path: name.Path, Base: newBase}
-}
-
-type stripIdxState int
-
-const (
-	expectDigit stripIdxState = iota
-	expectDigitOrBacktick
-)
-
-func stripIdx(name string) string {
-	state := expectDigit
-	i := len(name) - 1
-	for ; i >= 0; i-- {
-		ch := name[i]
-		if ch >= '0' && ch <= '9' && (state == expectDigit || state == expectDigitOrBacktick) {
-			state = expectDigitOrBacktick
-		} else if ch == '`' && state == expectDigitOrBacktick {
-			return name[:i]
-		} else {
-			return name
-		}
-	}
-	return name
 }
 
 func (c *controller) reveal() {
