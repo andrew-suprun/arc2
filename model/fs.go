@@ -5,7 +5,7 @@ import (
 )
 
 type FS interface {
-	Scan(root Root)
+	Scan(root string)
 	Send(cmd FileCommand)
 }
 
@@ -14,36 +14,36 @@ type FileCommand interface {
 }
 
 type DeleteFile struct {
-	Hash Hash // TODO Need it?
-	Id   Id
+	Root string
+	Path string
 }
 
 func (DeleteFile) cmd() {}
 
 func (d DeleteFile) String() string {
-	return fmt.Sprintf("DeleteFile: Id: %q, hash: %q", d.Id, d.Hash)
+	return fmt.Sprintf("DeleteFile: root: %q, name: %q", d.Root, d.Path)
 }
 
 type RenameFile struct {
-	Hash Hash // TODO Need it?
-	From Id
-	To   Name
+	Root string
+	From string
+	To   string
 }
 
 func (RenameFile) cmd() {}
 
 func (r RenameFile) String() string {
-	return fmt.Sprintf("RenameFile: From: %q, To: %q, hash: %q", r.From, r.To, r.Hash)
+	return fmt.Sprintf("RenameFile: root: %q, from: %q, to: %q", r.Root, r.From, r.To)
 }
 
 type CopyFile struct {
-	Hash Hash // TODO Need it?
-	From Id
-	To   []Id
+	Root string
+	From string
+	To   []string
 }
 
 func (CopyFile) cmd() {}
 
 func (c CopyFile) String() string {
-	return fmt.Sprintf("CopyFile: From: %q, To: %v, hash: %q", c.From, c.To, c.Hash)
+	return fmt.Sprintf("CopyFile: from: %q, to: %v", c.From, c.To)
 }

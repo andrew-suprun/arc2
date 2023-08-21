@@ -34,14 +34,14 @@ func main() {
 		}()
 	}
 
-	var paths []m.Root
+	var paths []string
 	if len(os.Args) >= 1 && (os.Args[1] == "-sim" || os.Args[1] == "-sim2") {
-		paths = []m.Root{"origin", "copy 1", "copy 2"}
+		paths = []string{"origin", "copy 1", "copy 2"}
 	} else {
-		paths = make([]m.Root, len(os.Args)-1)
+		paths = make([]string, len(os.Args)-1)
 		for i, path := range os.Args[1:] {
 			path, err := file_fs.AbsPath(path)
-			paths[i] = m.Root(path)
+			paths[i] = path
 			if err != nil {
 				log.Panicf("Failed to scan archives: %#v", err)
 			}

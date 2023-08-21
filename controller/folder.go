@@ -1,38 +1,75 @@
 package controller
 
 import (
-	m "arc/model"
+	v "arc/view"
 	"fmt"
 	"strings"
-	"time"
 )
 
-type folder struct {
-	path               m.Path
-	files              map[m.Base]*m.File
-	selectedBase       m.Base
-	entries            int
-	selectedIdx        int
-	offsetIdx          int
-	sortColumn         m.SortColumn
-	sortAscending      []bool
-	lastMouseEventTime time.Time
+func newFolder(name string) *folder {
+	return &folder{
+		name:     name,
+		children: map[string]*folder{},
+		files:    map[string]*file{},
+	}
 }
 
-func newFolder(path m.Path) *folder {
-	return &folder{
-		path:          path,
-		files:         map[m.Base]*m.File{},
-		sortAscending: []bool{true, false, false},
+func (f *folder) file(name string) *file {
+	return f.files[name]
+}
+
+func (f *folder) child(name string) *folder {
+	child := f.children[name]
+	if child == nil {
+		child = newFolder(name)
+		f.children[name] = child
+	}
+	return child
+}
+
+func (f *folder) mergeState(state v.State) {
+	if f != nil && f.state < state {
+		f.state = state
+		f.parent.mergeState(state)
+	}
+}
+
+func (f *folder) updateState() {
+	if f == nil {
+		return
+	}
+	curState := f.state
+	newState := v.Resolved
+	for _, folder := range f.children {
+		if newState < folder.state {
+			newState = folder.state
+		}
+	}
+	for _, file := range f.files {
+		if newState < file.state {
+			newState = file.state
+		}
+	}
+	if f != nil && f.state < newState {
+		f.state = newState
+		f.parent.mergeState(newState)
+	}
+	if curState != newState {
+		f.state = newState
+		f.parent.updateState()
 	}
 }
 
 func (f *folder) printTo(buf *strings.Builder) {
-	fmt.Fprintf(buf, "    Folder: %q\n", f.path)
+	fmt.Fprintf(buf, "    Folder:\n")
 	fmt.Fprintf(buf, "      Selected Idx: %d\n", f.selectedIdx)
 	fmt.Fprintf(buf, "      Offset Idx: %d\n", f.offsetIdx)
-	fmt.Fprintln(buf, "      Entries:")
-	for _, entry := range f.files {
-		fmt.Fprintf(buf, "        %s,\n", entry)
+	fmt.Fprintln(buf, "      Folders:")
+	for _, child := range f.children {
+		fmt.Fprintf(buf, "        %s,\n", child)
+	}
+	fmt.Fprintln(buf, "      Files:")
+	for _, file := range f.files {
+		fmt.Fprintf(buf, "        %s,\n", file)
 	}
 }

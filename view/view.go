@@ -4,27 +4,31 @@ import (
 	m "arc/model"
 	w "arc/widgets"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
 type View struct {
-	Archive       m.Root
-	Path          m.Path
+	Archive       string
+	Path          []string
 	Entries       []Entry
-	SelectedBase  m.Base
-	FileTreeLines int
+	SelectedName  string
 	OffsetIdx     int
 	Progress      *Progress
-	SortColumn    m.SortColumn
+	SortColumn    SortColumn
 	SortAscending bool
+	FileTreeLines int
 }
 
 type Entry struct {
-	*m.File
+	Name    string
+	Size    uint64
+	ModTime time.Time
 	Kind
+	State
+	Counts   []int
+	Progress uint64
 }
 
 type Kind int
@@ -38,6 +42,72 @@ type Progress struct {
 	Tab           string
 	Value         float64
 	TimeRemaining time.Duration // TODO Implement
+}
+
+type State int
+
+const (
+	Resolved State = iota
+	Scanned
+	Hashing
+	Hashed
+	Pending
+	Copying
+	Divergent
+)
+
+func (s State) String() string {
+	switch s {
+	case Resolved:
+		return "Resolved"
+	case Scanned:
+		return "Scanned"
+	case Hashing:
+		return "Hashing"
+	case Hashed:
+		return "Hashed"
+	case Pending:
+		return "Pending"
+	case Copying:
+		return "Copying"
+	case Divergent:
+		return "Divergent"
+	}
+	return "UNKNOWN FILE STATE"
+}
+
+func (s State) Merge(other State) State {
+	if other > s {
+		return other
+	}
+	return s
+}
+
+type SelectFile struct {
+	Path []string
+	Name string
+}
+
+type SelectFolder []string
+
+type SortColumn int
+
+const (
+	SortByName SortColumn = iota
+	SortByTime
+	SortBySize
+)
+
+func (c SortColumn) String() string {
+	switch c {
+	case SortByName:
+		return "SortByName"
+	case SortByTime:
+		return "SortByTime"
+	case SortBySize:
+		return "SortBySize"
+	}
+	return "Illegal Sort Solumn"
 }
 
 var (
@@ -67,7 +137,7 @@ func (a *View) RootWidget() w.Widget {
 func (a *View) title() w.Widget {
 	return w.Row(rowConstraint,
 		w.Styled(styleAppTitle, w.Text(" Archive")), w.Text(" "),
-		w.Styled(styleArchive, w.Text(a.Archive.String()).Flex(1)),
+		w.Styled(styleArchive, w.Text(a.Archive).Flex(1)),
 	)
 }
 
@@ -77,9 +147,9 @@ func (v *View) folderWidget() w.Widget {
 		w.Styled(styleArchiveHeader,
 			w.Row(rowConstraint,
 				w.Text(" Status").Width(13),
-				w.MouseTarget(m.SortByName, w.Text(" Document"+v.sortIndicator(m.SortByName)).Width(20).Flex(1)),
-				w.MouseTarget(m.SortByTime, w.Text("  Date Modified"+v.sortIndicator(m.SortByTime)).Width(19)),
-				w.MouseTarget(m.SortBySize, w.Text(fmt.Sprintf("%22s", "Size"+v.sortIndicator(m.SortBySize)+" "))),
+				w.MouseTarget(SortByName, w.Text(" Document"+v.sortIndicator(SortByName)).Width(20).Flex(1)),
+				w.MouseTarget(SortByTime, w.Text("  Date Modified"+v.sortIndicator(SortByTime)).Width(19)),
+				w.MouseTarget(SortBySize, w.Text(fmt.Sprintf("%22s", "Size"+v.sortIndicator(SortBySize)+" "))),
 			),
 		),
 		w.Scroll(m.Scroll{}, w.Constraint{Size: w.Size{Width: 0, Height: 0}, Flex: w.Flex{X: 1, Y: 1}},
@@ -96,8 +166,8 @@ func (v *View) folderWidget() w.Widget {
 					if i >= size.Height {
 						break
 					}
-					rows = append(rows, w.Styled(v.styleFile(file, v.SelectedBase == file.Base),
-						w.MouseTarget(m.SelectFile(file.Id), w.Row(rowConstraint,
+					rows = append(rows, w.Styled(v.styleFile(file, v.SelectedName == file.Name),
+						w.MouseTarget(SelectFile{Path: v.Path, Name: file.Name}, w.Row(rowConstraint,
 							v.fileRow(file)...,
 						)),
 					))
@@ -119,7 +189,7 @@ func (a *View) fileRow(file Entry) []w.Widget {
 		result = append(result, w.Text(" ▶ "))
 	}
 
-	result = append(result, w.Text(file.Id.Base.String()).Width(20).Flex(1))
+	result = append(result, w.Text(file.Name).Width(20).Flex(1))
 	result = append(result, w.Text("  "))
 	result = append(result, w.Text(file.ModTime.Format(time.DateTime)))
 	result = append(result, w.Text("  "))
@@ -129,12 +199,12 @@ func (a *View) fileRow(file Entry) []w.Widget {
 
 func state(entry Entry) w.Widget {
 	switch entry.State {
-	case m.Hashing, m.Copying:
+	case Hashing, Copying:
 		value := float64(entry.Progress) / float64(entry.Size)
 		return w.Styled(styleProgressBar, w.ProgressBar(value).Width(10).Flex(0))
-	case m.Pending:
+	case Pending:
 		return w.Text("Pending").Width(10)
-	case m.Divergent:
+	case Divergent:
 		break
 	default:
 		return w.Text("").Width(10)
@@ -157,7 +227,7 @@ func countRune(count int) rune {
 	return '0' + rune(count)
 }
 
-func (v *View) sortIndicator(column m.SortColumn) string {
+func (v *View) sortIndicator(column SortColumn) string {
 	if column == v.SortColumn {
 		if v.SortAscending {
 			return " ▲"
@@ -167,16 +237,17 @@ func (v *View) sortIndicator(column m.SortColumn) string {
 	return ""
 }
 
+// TODO Redo
 func (v *View) breadcrumbs() w.Widget {
-	names := strings.Split(v.Path.String(), "/")
+	names := v.Path
 	widgets := make([]w.Widget, 0, len(names)*2+2)
-	widgets = append(widgets, w.MouseTarget(m.SelectFolder(""),
+	widgets = append(widgets, w.MouseTarget(SelectFolder(""),
 		w.Styled(styleBreadcrumbs, w.Text(" Root")),
 	))
 	for i := range names {
 		widgets = append(widgets, w.Text(" / "))
 		widgets = append(widgets,
-			w.MouseTarget(m.SelectFolder(m.Path(filepath.Join(names[:i+1]...))),
+			w.MouseTarget(SelectFolder(m.Path(filepath.Join(names[:i+1]...))),
 				w.Styled(styleBreadcrumbs, w.Text(names[i])),
 			),
 		)
@@ -229,15 +300,14 @@ func (a *View) styleFile(file Entry, selected bool) w.Style {
 var styleBreadcrumbs = w.Style{FG: 250, BG: 17, Flags: w.Bold + w.Italic}
 
 func (a *View) statusColor(file Entry) (color byte) {
-	log.Printf("statusColor: file: %q, color: %s", file.Id, file.State)
 	switch file.State {
-	case m.Resolved, m.Hashed:
+	case Resolved, Hashed:
 		return 195
-	case m.Scanned, m.Hashing:
+	case Scanned, Hashing:
 		return 248
-	case m.Pending, m.Copying:
+	case Pending, Copying:
 		return 214
-	case m.Divergent:
+	case Divergent:
 		return 196
 	}
 	return 231

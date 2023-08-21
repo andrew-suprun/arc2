@@ -5,36 +5,34 @@ import (
 	"arc/stream"
 	"log"
 	"math/rand"
-	"path/filepath"
-	"sort"
 	"time"
 )
 
 var Scan bool
 
 type mockFs struct {
-	eventStream *stream.Stream[m.Event]
-	commands    *stream.Stream[m.FileCommand]
+	events   *stream.Stream[m.Event]
+	commands *stream.Stream[m.FileCommand]
 }
 
 type scanner struct {
-	root        m.Root
-	eventStream *stream.Stream[m.Event]
+	root   string
+	events *stream.Stream[m.Event]
 }
 
 func NewFs(eventStream *stream.Stream[m.Event]) m.FS {
 	fs := &mockFs{
-		eventStream: eventStream,
-		commands:    stream.NewStream[m.FileCommand]("mock-fs"),
+		events:   eventStream,
+		commands: stream.NewStream[m.FileCommand]("mock-fs"),
 	}
 	go fs.handleCommands()
 	return fs
 }
 
-func (fs *mockFs) Scan(root m.Root) {
+func (fs *mockFs) Scan(root string) {
 	s := &scanner{
-		root:        root,
-		eventStream: fs.eventStream,
+		root:   root,
+		events: fs.events,
 	}
 	go s.scanArchive()
 }
@@ -56,20 +54,24 @@ func (fs *mockFs) handleCommand(cmd m.FileCommand) {
 	log.Printf("mock: cmd: %T: %v", cmd, cmd)
 	switch cmd := cmd.(type) {
 	case m.DeleteFile:
-		fs.eventStream.Push(m.FileDeleted(cmd))
+		fs.events.Push(m.FileDeleted(cmd))
 
 	case m.RenameFile:
-		fs.eventStream.Push(m.FileRenamed(cmd))
+		fs.events.Push(m.FileRenamed(cmd))
 
 	case m.CopyFile:
+		size := 0
+		for _, meta := range metas {
+			if cmd.From
+		}
 		for _, meta := range metas[cmd.From.Root] {
-			if meta.Id.Name == cmd.From.Name {
+			if meta.Id.Name == cmd.From.NaPath
 				for copied := uint64(0); ; copied += 10000 {
-					if copied > meta.Size {
-						copied = meta.Size
+					if copied > meta.size {
+						copied = meta.size
 					}
-					fs.eventStream.Push(m.CopyingProgress(copied))
-					if copied == meta.Size {
+					fs.events.Push(m.CopyingProgress(copied))
+					if copied == meta.size {
 						break
 					}
 					time.Sleep(time.Millisecond)
@@ -77,7 +79,7 @@ func (fs *mockFs) handleCommand(cmd m.FileCommand) {
 				break
 			}
 		}
-		fs.eventStream.Push(m.FileCopied(cmd))
+		fs.events.Push(m.FileCopied(cmd))
 	}
 }
 
@@ -85,22 +87,22 @@ func (s *scanner) scanArchive() {
 	archFiles := metas[s.root]
 	totalSize := uint64(0)
 	for _, file := range archFiles {
-		totalSize += file.Size
+		totalSize += file.size
 	}
 
 	for _, meta := range archFiles {
 		meta := &m.Meta{
 			Id:      meta.Id,
-			Size:    meta.Size,
-			ModTime: meta.ModTime,
+			Size:    meta.size,
+			ModTime: meta.modTime,
 		}
-		s.eventStream.Push(m.FileScanned{
+		s.events.Push(m.FileScanned{
 			Meta: *meta,
 		})
 
 	}
 
-	s.eventStream.Push(m.ArchiveScanned{
+	s.events.Push(m.ArchiveScanned{
 		Root: s.root,
 	})
 
@@ -112,7 +114,7 @@ func (s *scanner) scanArchive() {
 	for i := range archFiles {
 		if !scans[i] {
 			meta := archFiles[i]
-			s.eventStream.Push(m.FileHashed{
+			s.events.Push(m.FileHashed{
 				Id:   meta.Id,
 				Hash: meta.Hash,
 			})
@@ -122,23 +124,23 @@ func (s *scanner) scanArchive() {
 		if scans[i] {
 			meta := archFiles[i]
 			for hashed := uint64(0); ; hashed += 50000 {
-				if hashed > meta.Size {
-					hashed = meta.Size
+				if hashed > meta.size {
+					hashed = meta.size
 				}
-				s.eventStream.Push(m.HashingProgress{Id: meta.Id, Hashed: hashed})
-				if hashed == meta.Size {
+				s.events.Push(m.HashingProgress{Id: meta.Id, Hashed: hashed})
+				if hashed == meta.size {
 					break
 				}
 				time.Sleep(time.Millisecond)
 			}
-			s.eventStream.Push(m.FileHashed{
+			s.events.Push(m.FileHashed{
 				Id:   meta.Id,
 				Hash: meta.Hash,
 			})
 		}
 	}
 
-	s.eventStream.Push(m.ArchiveHashed{
+	s.events.Push(m.ArchiveHashed{
 		Root: s.root,
 	})
 }
@@ -148,129 +150,115 @@ var end = time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 var duration = end.Sub(beginning)
 
 type fileMeta struct {
-	INode uint64
-	m.Id
-	m.Hash
-	Size    uint64
-	ModTime time.Time
+	root    string
+	name    string
+	hash    string
+	size    uint64
+	modTime time.Time
 }
 
-var sizeByName = map[string]uint64{}
-var sizeByHash = map[m.Hash]uint64{}
-var modTimes = map[m.Hash]time.Time{}
+var sizes = map[string]uint64{}
+var modTimes = map[string]time.Time{}
 var inode = uint64(0)
 
 func init() {
-	sizeByHash["yyyy"] = 50000000
-	sizeByHash["hhhh"] = 50000000
-	for root, metaStrings := range metaMap {
-		for name, hash := range metaStrings {
-			size, ok := sizeByName[name]
-			if !ok {
-				size, ok = sizeByHash[hash]
-				if !ok {
-					size = uint64(rand.Intn(100000000))
-					sizeByHash[hash] = size
-				}
-			}
-			modTime, ok := modTimes[hash]
-			if !ok {
-				modTime = beginning.Add(time.Duration(rand.Int63n(int64(duration))))
-				modTimes[hash] = modTime
-			}
-			inode++
-			file := &fileMeta{
-				INode:   inode,
-				Id:      m.Id{Root: root, Name: m.Name{Path: dir(name), Base: base(name)}},
-				Hash:    hash,
-				Size:    size,
-				ModTime: modTime,
-			}
-			metas[root] = append(metas[root], file)
+	for _, meta := range metas {
+		size, ok := sizes[meta.hash]
+		if !ok {
+			size = uint64(rand.Intn(100000000))
+			meta.size = size
+			sizes[meta.hash] = size
 		}
-		slice := metas[root]
-		sort.Slice(slice, func(i, j int) bool {
-			return slice[i].Id.String() < slice[j].Id.String()
-		})
-		metas[root] = slice
+		modTime, ok := modTimes[meta.hash]
+		if !ok {
+			modTime = beginning.Add(time.Duration(rand.Int63n(int64(duration))))
+			meta.modTime = modTime
+			modTimes[meta.hash] = modTime
+		}
 	}
 }
 
-var metas = map[m.Root][]*fileMeta{}
-var metaMap = map[m.Root]map[string]m.Hash{
-	"origin": {
-		"a/b/c/d": "abcd",
-		"b/0000":  "0000",
-		// "6666":            "6666",
-		// "7777":            "7777",
-		// "a/b/e/f.txt":     "gggg",
-		// "a/b/e/g.txt":     "tttt",
-		// "a/b/e/h.txt":     "hhhh",
-		// "x/xxx.txt":       "hhhh",
-		// "q/w/e/r/t/y.txt": "qwerty",
-		// "qqq.txt":         "hhhh",
-		// "uuu.txt":         "hhhh",
-		// "xxx.txt":         "xxxx",
-		// "yyy.txt":         "yyyy",
-		// "same":            "same",
-		// "different":       "different",
-		// "bla":             "bla",
-		// "xyz/bla":         "xyz/bla",
-	},
-	"copy 1": {
-		"a/b":    "abcd",
-		"b/0000": "0000",
-		// "xxx.txt":     "xxxx",
-		// "a/b/c/d.txt": "llll",
-		// "a/b/e/f.txt": "hhhh",
-		// "a/b/e/g.txt": "tttt",
-		// "qqq.txt":     "mmmm",
-		// "y.txt":       "gggg",
-		// "x/xxx.txt":   "hhhh",
-		// "zzz.txt":     "hhhh",
-		// "x/y/z.txt":   "zzzz",
-		// "yyy.txt":     "yyyy",
-		// "1111":        "0000",
-		// "9999":        "9999",
-		// "4444":        "4444",
-		// "8888":        "9999",
-		// "b/bbb.txt":   "bbbb",
-		// "6666":        "6666",
-		// "7777":        "7777",
-		// "same":        "same-copy",
-		// "different":   "different-copy1",
-		// "bla":         "bla",
-		// "xyz/bla":     "xyz/bla",
-	},
-	"copy 2": {
-		"b/0000": "0000",
-		// "xxx.txt":         "xxxx",
-		// "a/b/e/x.txt":     "gggg",
-		// "a/b/e/g.txt":     "tttt",
-		// "x":               "asdfg",
-		// "q/w/e/r/t/y.txt": "12345",
-		// "2222":            "0000",
-		// "9999":            "9999",
-		// "5555":            "4444",
-		// "6666":            "7777",
-		// "7777":            "6666",
-		// "8888":            "8888",
-		// "c/ccc.txt":       "bbbb",
-		// "same":            "same-copy",
-		// "different":       "different-copy2",
-		// "bla":             "bla",
-		// "xyz/bla":         "xyz/bla",
-	},
-}
-
-func dir(path string) m.Path {
-	path = filepath.Dir(path)
-	if path == "." {
-		return ""
-	}
-	return m.Path(path)
-}
-
-func base(path string) m.Base {
-	return m.Base(filepath.Base(path))
+var metas = []*fileMeta{
+	{root: "origin", name: "b/0000", hash: "0000"},
+	{root: "copy 1", name: "1111", hash: "0000"},
+	{root: "copy 1", name: "b/0000", hash: "0000"},
+	{root: "copy 2", name: "2222", hash: "0000"},
+	{root: "copy 2", name: "b/0000", hash: "0000"},
+	// ----
+	{root: "copy 2", name: "q/w/e/r/t/y.txt", hash: "12345"},
+	// ----
+	{root: "copy 1", name: "4444", hash: "4444"},
+	{root: "copy 2", name: "5555", hash: "4444"},
+	// ----
+	{root: "origin", name: "6666", hash: "6666"},
+	{root: "copy 1", name: "6666", hash: "6666"},
+	{root: "copy 2", name: "7777", hash: "6666"},
+	// ----
+	{root: "origin", name: "7777", hash: "7777"},
+	{root: "copy 1", name: "7777", hash: "7777"},
+	{root: "copy 2", name: "6666", hash: "7777"},
+	// ----
+	{root: "copy 2", name: "8888", hash: "8888"},
+	// ----
+	{root: "copy 1", name: "8888", hash: "9999"},
+	{root: "copy 1", name: "9999", hash: "9999"},
+	{root: "copy 2", name: "9999", hash: "9999"},
+	// ----
+	{root: "origin", name: "a/b/c/d", hash: "abcd"},
+	{root: "copy 1", name: "a/b", hash: "abcd"},
+	// ----
+	{root: "copy 2", name: "x", hash: "asdfg"},
+	// ----
+	{root: "copy 1", name: "b/bbb.txt", hash: "bbbb"},
+	{root: "copy 2", name: "c/ccc.txt", hash: "bbbb"},
+	// ----
+	{root: "origin", name: "bla", hash: "bla"},
+	{root: "copy 1", name: "bla", hash: "bla"},
+	{root: "copy 2", name: "bla", hash: "bla"},
+	// ----
+	{root: "origin", name: "different", hash: "different"},
+	// ----
+	{root: "copy 1", name: "different", hash: "different-copy1"},
+	// ----
+	{root: "copy 2", name: "different", hash: "different-copy2"},
+	// ----
+	{root: "origin", name: "a/b/e/f.txt", hash: "gggg"},
+	{root: "copy 1", name: "y.txt", hash: "gggg"},
+	{root: "copy 2", name: "a/b/e/x.txt", hash: "gggg"},
+	// ----
+	{root: "origin", name: "a/b/e/h.txt", hash: "hhhh"},
+	{root: "origin", name: "uuu.txt", hash: "hhhh"},
+	{root: "origin", name: "qqq.txt", hash: "hhhh"},
+	{root: "origin", name: "x/xxx.txt", hash: "hhhh"},
+	{root: "copy 1", name: "a/b/e/f.txt", hash: "hhhh"},
+	{root: "copy 1", name: "x/xxx.txt", hash: "hhhh"},
+	{root: "copy 1", name: "zzz.txt", hash: "hhhh"},
+	// ----
+	{root: "copy 1", name: "a/b/c/d.txt", hash: "llll"},
+	// ----
+	{root: "copy 1", name: "qqq.txt", hash: "mmmm"},
+	// ----
+	{root: "origin", name: "q/w/e/r/t/y.txt", hash: "qwerty"},
+	// ----
+	{root: "origin", name: "same", hash: "same"},
+	// ----
+	{root: "copy 1", name: "same", hash: "same-copy"},
+	{root: "copy 2", name: "same", hash: "same-copy"},
+	// ----
+	{root: "origin", name: "a/b/e/g.txt", hash: "tttt"},
+	{root: "copy 1", name: "a/b/e/g.txt", hash: "tttt"},
+	{root: "copy 2", name: "a/b/e/g.txt", hash: "tttt"},
+	// ----
+	{root: "origin", name: "xxx.txt", hash: "xxxx"},
+	{root: "copy 1", name: "xxx.txt", hash: "xxxx"},
+	{root: "copy 2", name: "xxx.txt", hash: "xxxx"},
+	// ----
+	{root: "origin", name: "xyz/bla", hash: "xyz/bla"},
+	{root: "copy 1", name: "xyz/bla", hash: "xyz/bla"},
+	{root: "copy 2", name: "xyz/bla", hash: "xyz/bla"},
+	// ----
+	{root: "origin", name: "yyy.txt", hash: "yyyy"},
+	{root: "copy 1", name: "yyy.txt", hash: "yyyy"},
+	// ----
+	{root: "copy 1", name: "x/y/z.txt", hash: "zzzz"},
 }

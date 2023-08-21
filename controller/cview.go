@@ -11,7 +11,7 @@ func (c *controller) view() *v.View {
 	currentFolder := archive.currentFolder()
 	view := &v.View{
 		Archive:   archive.root,
-		Path:      archive.currentPath,
+		Path:      archive.currentId,
 		OffsetIdx: currentFolder.offsetIdx,
 	}
 
@@ -50,9 +50,9 @@ func (c *controller) view() *v.View {
 		default:
 			view.Progress = nil
 		}
-		if path == archive.currentPath {
+		if path == archive.currentId {
 			archive.populateFiles(view, folder)
-		} else if strings.HasPrefix(path.String(), archive.currentPath.String()) {
+		} else if strings.HasPrefix(path.String(), archive.currentId.String()) {
 			archive.populateSubFolder(view, folder, subFolders)
 		}
 	}
@@ -86,7 +86,7 @@ func (c *controller) view() *v.View {
 
 		currentFolder.selectedBase = view.Entries[currentFolder.selectedIdx].Base
 	}
-	view.SelectedBase = currentFolder.selectedBase
+	view.SelectedName = currentFolder.selectedBase
 
 	return view
 }
@@ -109,7 +109,7 @@ func (a *archive) populateSubFolder(view *v.View, folder *folder, subFolders map
 		entry = v.Entry{
 			File: &m.File{
 				Meta: m.Meta{
-					Id: m.Id{Root: a.root, Name: m.Name{Path: a.currentPath, Base: base}},
+					Id: id{Root: a.root, Name: m.Path{Path: a.currentPath, Base: base}},
 				},
 				State: m.Scanned,
 			},

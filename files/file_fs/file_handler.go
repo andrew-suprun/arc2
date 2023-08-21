@@ -131,7 +131,7 @@ func (f *fileFs) reader(source m.Id, targets []m.Id, eventChans []chan event) {
 
 	for i := range targets {
 		commands[i] = make(chan []byte)
-		go f.writer(m.Id{Root: targets[i].Root, Name: source.Name}, info.ModTime(), commands[i], eventChans[i])
+		go f.writer(m.Id{Root: targets[i].Root, Path: source.Path}, info.ModTime(), commands[i], eventChans[i])
 	}
 
 	sourceFile, err := os.Open(source.String())

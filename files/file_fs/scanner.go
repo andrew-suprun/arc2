@@ -46,7 +46,7 @@ func (s *scanner) scanArchive() {
 
 		if err != nil {
 			s.events.Push(m.Error{
-				Id:    m.Id{Root: s.root, Name: m.Path(path).ParentName()},
+				Id:    m.Id{Root: s.root, Path: m.Path(path).ParentName()},
 				Error: err})
 			return nil
 		}
@@ -54,7 +54,7 @@ func (s *scanner) scanArchive() {
 		meta, err := d.Info()
 		if err != nil {
 			s.events.Push(m.Error{
-				Id:    m.Id{Root: s.root, Name: m.Path(path).ParentName()},
+				Id:    m.Id{Root: s.root, Path: m.Path(path).ParentName()},
 				Error: err})
 			return nil
 		}
@@ -63,7 +63,7 @@ func (s *scanner) scanArchive() {
 		modTime = modTime.UTC().Round(time.Second)
 
 		file := &m.Meta{
-			Id:      m.Id{Root: s.root, Name: m.Path(path).ParentName()},
+			Id:      m.Id{Root: s.root, Path: m.Path(path).ParentName()},
 			ModTime: modTime,
 			Size:    uint64(meta.Size()),
 		}
@@ -115,7 +115,7 @@ func (s *scanner) hashFile(id m.Id) m.Hash {
 	var hashed uint64
 
 	fsys := os.DirFS(id.Root.String())
-	file, err := fsys.Open(id.Name.String())
+	file, err := fsys.Open(id.Path.String())
 	if err != nil {
 		s.events.Push(m.Error{Id: id, Error: err})
 		return ""
