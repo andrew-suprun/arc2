@@ -10,13 +10,16 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+type meta struct {
+}
+
 type fileFs struct {
-	events   *stream.Stream[m.Event]
+	events   *stream.Stream[any]
 	lc       *lifecycle.Lifecycle
 	commands *stream.Stream[m.FileCommand]
 }
 
-func NewFs(events *stream.Stream[m.Event], lc *lifecycle.Lifecycle) m.FS {
+func NewFs(events *stream.Stream[any], lc *lifecycle.Lifecycle) m.FS {
 	fs := &fileFs{
 		events:   events,
 		lc:       lc,
@@ -28,13 +31,13 @@ func NewFs(events *stream.Stream[m.Event], lc *lifecycle.Lifecycle) m.FS {
 	return fs
 }
 
-func (fs *fileFs) Scan(root m.Root) {
+func (fs *fileFs) Scan(root string) {
 	s := &scanner{
 		root:   root,
 		events: fs.events,
 		lc:     fs.lc,
-		metas:  map[uint64]*m.Meta{},
-		hashes: map[uint64]m.Hash{},
+		metas:  map[uint64]*meta{},
+		hashes: map[uint64]string{},
 	}
 	go s.scanArchive()
 }

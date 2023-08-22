@@ -1,20 +1,19 @@
 package view
 
 import (
-	m "arc/model"
 	"cmp"
 	"slices"
 	"strings"
 )
 
-func (v *View) Sort(sortColumn m.SortColumn, sortAscending bool) {
+func (v *View) Sort(sortColumn SortColumn, sortAscending bool) {
 	var cmp func(a, b Entry) int
 	switch sortColumn {
-	case m.SortByName:
+	case SortByName:
 		cmp = cmpByAscendingName
-	case m.SortByTime:
+	case SortByTime:
 		cmp = cmpByAscendingTime
-	case m.SortBySize:
+	case SortBySize:
 		cmp = cmpByAscendingSize
 	}
 	slices.SortFunc(v.Entries, cmp)
@@ -24,7 +23,7 @@ func (v *View) Sort(sortColumn m.SortColumn, sortAscending bool) {
 }
 
 func cmpByName(a, b Entry) int {
-	return cmp.Compare(strings.ToLower(a.Base.String()), strings.ToLower(b.Base.String()))
+	return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 }
 
 func cmpBySize(a, b Entry) int {

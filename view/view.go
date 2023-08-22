@@ -15,10 +15,11 @@ type View struct {
 	Entries       []Entry
 	SelectedName  string
 	OffsetIdx     int
-	Progress      *Progress
 	SortColumn    SortColumn
 	SortAscending bool
 	FileTreeLines int
+	ProgressTab   string
+	Progress      *Progress
 }
 
 type Entry struct {
@@ -28,7 +29,7 @@ type Entry struct {
 	Kind
 	State
 	Counts   []int
-	Progress uint64
+	Progress *Progress
 }
 
 type Kind int
@@ -39,9 +40,8 @@ const (
 )
 
 type Progress struct {
-	Tab           string
-	Value         float64
-	TimeRemaining time.Duration // TODO Implement
+	Size uint64
+	Done uint64
 }
 
 type State int
@@ -53,6 +53,7 @@ const (
 	Hashed
 	Pending
 	Copying
+	Copied
 	Divergent
 )
 
@@ -70,17 +71,12 @@ func (s State) String() string {
 		return "Pending"
 	case Copying:
 		return "Copying"
+	case Copied:
+		return "Copied"
 	case Divergent:
 		return "Divergent"
 	}
 	return "UNKNOWN FILE STATE"
-}
-
-func (s State) Merge(other State) State {
-	if other > s {
-		return other
-	}
-	return s
 }
 
 type SelectFile struct {
@@ -261,7 +257,7 @@ func (a *View) progressWidget() w.Widget {
 		return w.NullWidget{}
 	}
 	return w.Styled(styleStatusLine, w.Row(w.Constraint{Size: w.Size{Width: 0, Height: 1}, Flex: w.Flex{X: 1, Y: 0}},
-		w.Text(a.Progress.Tab), w.Text(" "),
+		w.Text(a.ProgressTab), w.Text(" "),
 		w.Text(fmt.Sprintf(" %6.2f%%", a.Progress.Value*100)),
 		w.Text(fmt.Sprintf(" ETA %6s", a.Progress.TimeRemaining.Truncate(time.Second))), w.Text(" "),
 		w.Styled(styleProgressBar, w.ProgressBar(a.Progress.Value)),

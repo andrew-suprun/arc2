@@ -23,11 +23,11 @@ import (
 const hashFileName = ".meta.csv"
 
 type scanner struct {
-	root   m.Root
-	events *stream.Stream[m.Event]
+	root   string
+	events *stream.Stream[any]
 	lc     *lifecycle.Lifecycle
 	metas  map[uint64]*m.Meta
-	hashes map[uint64]m.Hash
+	hashes map[uint64]string
 	iNodes []uint64
 }
 

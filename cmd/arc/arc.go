@@ -50,7 +50,7 @@ func main() {
 
 	lc := lifecycle.New()
 
-	events := stream.NewStream[m.Event]("contr")
+	events := stream.NewStream[any]("contr")
 	renderer, err := tcell.NewRenderer(lc, events)
 	if err != nil {
 		log.Printf("Failed to open terminal: %#v", err)

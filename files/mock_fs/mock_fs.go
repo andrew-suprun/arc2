@@ -11,16 +11,16 @@ import (
 var Scan bool
 
 type mockFs struct {
-	events   *stream.Stream[m.Event]
+	events   *stream.Stream[any]
 	commands *stream.Stream[m.FileCommand]
 }
 
 type scanner struct {
 	root   string
-	events *stream.Stream[m.Event]
+	events *stream.Stream[any]
 }
 
-func NewFs(eventStream *stream.Stream[m.Event]) m.FS {
+func NewFs(eventStream *stream.Stream[any]) m.FS {
 	fs := &mockFs{
 		events:   eventStream,
 		commands: stream.NewStream[m.FileCommand]("mock-fs"),

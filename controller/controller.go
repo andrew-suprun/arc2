@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 )
 
-func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []string) (err any, stack []byte) {
+func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[any], roots []string) (err any, stack []byte) {
 	defer func() {
 		err = recover()
 		stack = debug.Stack()
@@ -16,17 +16,19 @@ func Run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []s
 	return nil, nil
 }
 
-func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []string) {
+func run(fs m.FS, renderer w.Renderer, events *stream.Stream[any], roots []string) {
 	c := &controller{
 		roots:    make([]string, len(roots)),
 		archives: map[string]*archive{},
+		byHash:   map[string][]*file{},
 		fs:       fs,
 	}
 
 	for i, root := range roots {
 		c.roots[i] = root
 		c.archives[root] = &archive{
-			rootFolder: newFolder(root),
+			idx:        i,
+			rootFolder: newFolder(root, ""),
 		}
 		c.fs.Scan(root)
 	}
@@ -39,7 +41,6 @@ func run(fs m.FS, renderer w.Renderer, events *stream.Stream[m.Event], roots []s
 			c.handleEvent(event)
 		}
 
-		c.frames++
 		screen := w.NewScreen(c.screenSize)
 		view := c.view()
 		rootWidget := view.RootWidget()

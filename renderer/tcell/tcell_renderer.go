@@ -12,7 +12,7 @@ import (
 
 type tcellRenderer struct {
 	lc               *lifecycle.Lifecycle
-	controllerEvents *stream.Stream[m.Event]
+	controllerEvents *stream.Stream[any]
 
 	commands         *stream.Stream[inEvent]
 	screen           tcell.Screen
@@ -41,7 +41,7 @@ type tcellEvent struct {
 
 func (tcellEvent) incoming() {}
 
-func NewRenderer(lc *lifecycle.Lifecycle, controllerEvents *stream.Stream[m.Event]) (w.Renderer, error) {
+func NewRenderer(lc *lifecycle.Lifecycle, controllerEvents *stream.Stream[any]) (w.Renderer, error) {
 	screen, err := tcell.NewScreen()
 	if err != nil {
 		return nil, err

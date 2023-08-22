@@ -1,8 +1,11 @@
 package controller
 
-import v "arc/view"
+import (
+	"path/filepath"
+)
 
-func (f *file) setState(state v.State) {
-	f.state = state
-	f.folder.mergeState(state)
+func (f *file) fullName() string {
+	path := f.parent.path()
+	path = append(path, f.name)
+	return filepath.Join(path...)
 }

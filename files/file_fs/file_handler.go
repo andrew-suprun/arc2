@@ -12,16 +12,16 @@ import (
 )
 
 func (f *fileFs) deleteFile(delete m.DeleteFile) {
-	log.Printf("### delete %q", delete.Id)
+	log.Printf("### delete root: %q, path: %q", delete.Root, delete.Path)
 	defer func() {
 		f.events.Push(m.FileDeleted(delete))
 	}()
-	err := os.Remove(delete.Id.String())
+	path := filepath.Join(delete.Root, delete.Path)
+	err := os.Remove(path)
 	if err != nil {
-		f.events.Push(m.Error{Id: delete.Id, Error: err})
+		f.events.Push(m.Error{Path: path, Error: err})
 	}
-	path := filepath.Join(delete.Id.Root.String(), delete.Id.Path.String())
-	fsys := os.DirFS(path)
+	fsys := os.DirFS(filepath.Dir(path))
 
 	entries, _ := fs.ReadDir(fsys, ".")
 	hasFiles := false
